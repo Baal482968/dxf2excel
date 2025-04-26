@@ -6,7 +6,7 @@ import pandas as pd
 import ezdxf
 import math
 import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 import threading
 import time
 import re
@@ -14,7 +14,7 @@ import re
 class CADtoExcelConverter:
     def __init__(self, root):
         self.root = root
-        self.root.title("CAD 資料轉換 Excel 工具")
+        self.root.title("CAD 鋼筋計料轉換 Excel 工具")
         self.root.geometry("700x600")
         self.root.resizable(True, True)
         
@@ -26,21 +26,42 @@ class CADtoExcelConverter:
         
         # 材質密度設定 (kg/m³)
         self.material_density = {
-            "鋼鐵": 7850,
+            "鋼筋": 7850,
             "鋁": 2700,
             "銅": 8960,
             "不鏽鋼": 8000
         }
         
         # 預設材質
-        self.default_material = "鋼鐵"
+        self.default_material = "鋼筋"
+        
+        # 鋼筋單位重量 (kg/m)
+        self.rebar_unit_weight = {
+            "#2": 0.249,
+            "#3": 0.561,
+            "#4": 0.996,
+            "#5": 1.552,
+            "#6": 2.235,
+            "#7": 3.042,
+            "#8": 3.973,
+            "#9": 5.026,
+            "#10": 6.404,
+            "#11": 7.906,
+            "#12": 11.38,
+            "#13": 13.87,
+            "#14": 14.59,
+            "#15": 20.24,
+            "#16": 25.00,
+            "#17": 31.20,
+            "#18": 39.70
+        }
         
         # 建立主框架
         main_frame = ttk.Frame(root, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # 標題
-        header_label = ttk.Label(main_frame, text="CAD 資料轉換 Excel 工具", style="Header.TLabel")
+        header_label = ttk.Label(main_frame, text="CAD 鋼筋計料轉換 Excel 工具", style="Header.TLabel")
         header_label.pack(pady=10)
         
         # 輸入檔案框架
@@ -91,11 +112,11 @@ class CADtoExcelConverter:
         self.entity_types = {
             "TEXT": tk.BooleanVar(value=True),
             "LINE": tk.BooleanVar(value=True),
-            "CIRCLE": tk.BooleanVar(value=True),
-            "ARC": tk.BooleanVar(value=True),
+            "CIRCLE": tk.BooleanVar(value=False),
+            "ARC": tk.BooleanVar(value=False),
             "POLYLINE": tk.BooleanVar(value=True),
             "LWPOLYLINE": tk.BooleanVar(value=True),
-            "BLOCK": tk.BooleanVar(value=True)
+            "BLOCK": tk.BooleanVar(value=False)
         }
         
         entity_check_frame = ttk.Frame(settings_frame)
@@ -119,8 +140,8 @@ class CADtoExcelConverter:
             "顏色": tk.BooleanVar(value=True),
             "文字內容": tk.BooleanVar(value=True),
             "尺寸": tk.BooleanVar(value=True),
-            "線型": tk.BooleanVar(value=True),
-            "號數": tk.BooleanVar(value=True)  # 新增號數屬性選項
+            "線型": tk.BooleanVar(value=False),
+            "號數": tk.BooleanVar(value=True)
         }
         
         attr_check_frame = ttk.Frame(settings_frame)
@@ -165,7 +186,7 @@ class CADtoExcelConverter:
         if filename:
             self.cad_path.set(filename)
             # 自動設定 Excel 檔案路徑
-            default_excel = os.path.splitext(filename)[0] + ".xlsx"
+            default_excel = os.path.splitext(filename)[0] + "_鋼筋計料.xlsx"
             self.excel_path.set(default_excel)
     
     def browse_excel_file(self):
@@ -185,10 +206,18 @@ class CADtoExcelConverter:
     def reset_form(self):
         self.cad_path.set("")
         self.excel_path.set("")
-        for var in self.entity_types.values():
-            var.set(True)
+        self.entity_types["TEXT"].set(True)
+        self.entity_types["LINE"].set(True)
+        self.entity_types["POLYLINE"].set(True)
+        self.entity_types["LWPOLYLINE"].set(True)
+        self.entity_types["CIRCLE"].set(False)
+        self.entity_types["ARC"].set(False)
+        self.entity_types["BLOCK"].set(False)
+        
         for var in self.attributes.values():
             var.set(True)
+        self.attributes["線型"].set(False)
+        
         self.status_text.delete(1.0, tk.END)
         self.progress["value"] = 0
     
@@ -229,34 +258,67 @@ class CADtoExcelConverter:
             total_length += self.calculate_line_length(points[i], points[i+1])
         return total_length
     
-    def extract_number_from_text(self, text):
-        """從帶有#的文字中提取號數"""
-        if text and text.startswith('#'):
-            # 去除#符號並清理空白
-            text_without_hash = text[1:].strip()
-            # 從文字中提取數字部分
-            number_match = re.search(r'^\d+', text_without_hash)
-            if number_match:
-                return number_match.group()
-        return ""
-    
-    def calculate_weight(self, length, diameter=None, thickness=None):
-        """計算重量 (kg)"""
-        try:
-            density = self.material_density[self.material_var.get()]
-            if diameter and thickness:  # 圓管
-                outer_radius = diameter / 2
-                inner_radius = outer_radius - thickness
-                cross_section = math.pi * (outer_radius**2 - inner_radius**2)
-                volume = cross_section * length
-            else:  # 實心圓棒
-                cross_section = math.pi * (diameter/2)**2 if diameter else 0.0001  # 預設直徑1mm
-                volume = cross_section * length
+    def extract_rebar_info(self, text):
+        """從文字中提取鋼筋信息"""
+        if not text:
+            return None, None, None
             
-            weight = volume * density / 1000000  # 轉換為kg
-            return round(weight, 3)
-        except:
-            return 0
+        number = ""
+        diameter = ""
+        count = 1
+        
+        # 尋找鋼筋號數 (格式如 #3, #4 等)
+        number_match = re.search(r'#(\d+)', text)
+        if number_match:
+            number = "#" + number_match.group(1)
+            diameter = self.get_rebar_diameter(number)
+        
+        # 尋找數量 (通常跟在號數後面，如 #3x5, #4-6 等)
+        count_match = re.search(r'[xX×*-](\d+)', text)
+        if count_match:
+            try:
+                count = int(count_match.group(1))
+            except:
+                count = 1
+        
+        return number, diameter, count
+    
+    def get_rebar_diameter(self, number):
+        """根據鋼筋號數獲取直徑(mm)"""
+        rebar_diameter = {
+            "#2": 6.4,   # 1/4"
+            "#3": 9.5,   # 3/8"
+            "#4": 12.7,  # 1/2"
+            "#5": 15.9,  # 5/8"
+            "#6": 19.1,  # 3/4"
+            "#7": 22.2,  # 7/8"
+            "#8": 25.4,  # 1"
+            "#9": 28.7,  # 1-1/8"
+            "#10": 32.3, # 1-1/4"
+            "#11": 35.8, # 1-3/8"
+            "#12": 43.0, # 1-1/2"
+            "#13": 43.0, # 上面開始就不確定了
+            "#14": 43.0,
+            "#15": 43.0,
+            "#16": 43.0,
+            "#17": 43.0,
+            "#18": 57.3  # 2-1/4"
+        }
+        
+        return rebar_diameter.get(number, "")
+    
+    def get_rebar_unit_weight(self, number):
+        """根據鋼筋號數獲取單位重量(kg/m)"""
+        return self.rebar_unit_weight.get(number, 0)
+    
+    def calculate_rebar_weight(self, number, length, count=1):
+        """計算鋼筋總重量"""
+        unit_weight = self.get_rebar_unit_weight(number)
+        if unit_weight and length:
+            # 將長度從mm轉換為m
+            length_m = length / 1000.0
+            return round(unit_weight * length_m * count, 2)
+        return 0
     
     def convert_cad_to_excel(self):
         try:
@@ -293,8 +355,11 @@ class CADtoExcelConverter:
             selected_entities = [entity for entity, var in self.entity_types.items() if var.get()]
             self.log_message(f"選定的實體類型: {', '.join(selected_entities)}")
             
-            # 準備資料表
-            data = []
+            # 準備鋼筋資料表
+            rebar_data = []
+            
+            # 編號計數器 (用於沒有號數的實體)
+            unnamed_counter = 1
             
             # 獲取實體
             self.log_message("正在處理 CAD 實體...")
@@ -313,146 +378,90 @@ class CADtoExcelConverter:
             
             processed_count = 0
             
-            # 統計資料
-            stats = {
+            # 鋼筋統計數據
+            rebar_stats = {
                 "總數量": 0,
                 "總長度": 0,
                 "總重量": 0,
                 "各類型數量": {}
             }
             
-            # 處理 TEXT 實體
+            # 處理 TEXT 實體 (通常包含鋼筋標記)
+            text_entities = {}
             if "TEXT" in selected_entities:
-                text_count = len(msp.query("TEXT"))
-                stats["各類型數量"]["文字"] = text_count
-                stats["總數量"] += text_count
-                
                 for text in msp.query("TEXT"):
                     text_content = text.dxf.text if self.attributes["文字內容"].get() else ""
-                    number = ""
-                    if self.attributes["號數"].get() and text_content.startswith('#'):
-                        number = self.extract_number_from_text(text_content)
-                    
-                    row = {
-                        "實體類型": "文字",
-                        "內容": text_content,
-                        "號數": number,
-                        "圖層": text.dxf.layer if self.attributes["圖層"].get() else "",
-                        "顏色": text.dxf.color if self.attributes["顏色"].get() else "",
-                        "高度": text.dxf.height if self.attributes["尺寸"].get() else "",
-                        "線型": text.dxf.linetype if self.attributes["線型"].get() else ""
-                    }
-                    data.append(row)
-                    processed_count += 1
-                    if processed_count % 100 == 0:
-                        progress = 20 + int(60 * processed_count / entity_count)
-                        self.progress["value"] = min(80, progress)
-                        self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
+                    if text_content:
+                        # 儲存文本位置和內容，稍後用於匹配線條
+                        position = (text.dxf.insert.x, text.dxf.insert.y)
+                        text_entities[position] = text_content
+                        
+                        # 直接從文字提取鋼筋資訊
+                        number, diameter, count = self.extract_rebar_info(text_content)
+                        if number:
+                            rebar_stats["各類型數量"][number] = rebar_stats["各類型數量"].get(number, 0) + count
+                            rebar_stats["總數量"] += count
             
-            # 處理 LINE 實體
+            # 處理線條和多段線實體 (鋼筋主體)
             if "LINE" in selected_entities:
-                line_count = len(msp.query("LINE"))
-                stats["各類型數量"]["直線"] = line_count
-                stats["總數量"] += line_count
-                
                 for line in msp.query("LINE"):
+                    # 取得線條資訊
                     start_point = (line.dxf.start.x, line.dxf.start.y, line.dxf.start.z)
                     end_point = (line.dxf.end.x, line.dxf.end.y, line.dxf.end.z)
                     line_length = self.calculate_line_length(start_point, end_point)
-                    stats["總長度"] += line_length
+                    layer = line.dxf.layer if self.attributes["圖層"].get() else ""
                     
-                    # 估算重量 (假設直徑10mm)
-                    weight = self.calculate_weight(line_length, diameter=10)
-                    stats["總重量"] += weight
+                    # 嘗試尋找鄰近的文字標註
+                    number = None
+                    diameter = None
+                    count = 1
+                    remark = ""
                     
-                    row = {
-                        "實體類型": "直線",
-                        "內容": "",
-                        "號數": "",
-                        "長度": line_length if self.attributes["尺寸"].get() else "",
-                        "重量": weight if self.attributes["尺寸"].get() else "",
-                        "圖層": line.dxf.layer if self.attributes["圖層"].get() else "",
-                        "顏色": line.dxf.color if self.attributes["顏色"].get() else "",
-                        "線型": line.dxf.linetype if self.attributes["線型"].get() else ""
-                    }
-                    data.append(row)
-                    processed_count += 1
-                    if processed_count % 100 == 0:
-                        progress = 20 + int(60 * processed_count / entity_count)
-                        self.progress["value"] = min(80, progress)
-                        self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
-            
-            # 處理 CIRCLE 實體
-            if "CIRCLE" in selected_entities:
-                circle_count = len(msp.query("CIRCLE"))
-                stats["各類型數量"]["圓"] = circle_count
-                stats["總數量"] += circle_count
-                
-                for circle in msp.query("CIRCLE"):
-                    try:
-                        radius = circle.dxf.radius
-                        circumference = 2 * math.pi * radius
-                        stats["總長度"] += circumference
-                        
-                        # 估算重量 (假設直徑10mm)
-                        weight = self.calculate_weight(circumference, diameter=10)
-                        stats["總重量"] += weight
-                        
-                        row = {
-                            "實體類型": "圓",
-                            "內容": "",
-                            "號數": "",
-                            "半徑": radius if self.attributes["尺寸"].get() else "",
-                            "周長": circumference if self.attributes["尺寸"].get() else "",
-                            "重量": weight if self.attributes["尺寸"].get() else "",
-                            "圖層": circle.dxf.layer if self.attributes["圖層"].get() else "",
-                            "顏色": circle.dxf.color if self.attributes["顏色"].get() else "",
-                            "線型": circle.dxf.linetype if self.attributes["線型"].get() else ""
-                        }
-                        data.append(row)
-                    except AttributeError as e:
-                        self.log_message(f"警告: 處理圓形實體時發生問題: {str(e)}")
+                    # 查找最接近線條端點的文字
+                    min_distance = float('inf')
+                    nearest_text = None
                     
-                    processed_count += 1
-                    if processed_count % 100 == 0:
-                        progress = 20 + int(60 * processed_count / entity_count)
-                        self.progress["value"] = min(80, progress)
-                        self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
-            
-            # 處理 ARC 實體
-            if "ARC" in selected_entities:
-                arc_count = len(msp.query("ARC"))
-                stats["各類型數量"]["弧"] = arc_count
-                stats["總數量"] += arc_count
-                
-                for arc in msp.query("ARC"):
-                    try:
-                        radius = arc.dxf.radius
-                        start_angle = math.radians(arc.dxf.start_angle)
-                        end_angle = math.radians(arc.dxf.end_angle)
-                        arc_length = radius * abs(end_angle - start_angle)
-                        stats["總長度"] += arc_length
+                    for text_pos, text_content in text_entities.items():
+                        # 計算文字到線條兩端的距離
+                        d1 = math.sqrt((text_pos[0] - start_point[0])**2 + (text_pos[1] - start_point[1])**2)
+                        d2 = math.sqrt((text_pos[0] - end_point[0])**2 + (text_pos[1] - end_point[1])**2)
+                        min_d = min(d1, d2)
                         
-                        # 估算重量 (假設直徑10mm)
-                        weight = self.calculate_weight(arc_length, diameter=10)
-                        stats["總重量"] += weight
-                        
-                        row = {
-                            "實體類型": "弧",
-                            "內容": "",
-                            "號數": "",
-                            "半徑": radius if self.attributes["尺寸"].get() else "",
-                            "弧長": arc_length if self.attributes["尺寸"].get() else "",
-                            "重量": weight if self.attributes["尺寸"].get() else "",
-                            "起始角度": arc.dxf.start_angle if self.attributes["尺寸"].get() else "",
-                            "結束角度": arc.dxf.end_angle if self.attributes["尺寸"].get() else "",
-                            "圖層": arc.dxf.layer if self.attributes["圖層"].get() else "",
-                            "顏色": arc.dxf.color if self.attributes["顏色"].get() else "",
-                            "線型": arc.dxf.linetype if self.attributes["線型"].get() else ""
-                        }
-                        data.append(row)
-                    except AttributeError as e:
-                        self.log_message(f"警告: 處理弧形實體時發生問題: {str(e)}")
+                        # 如果距離小於當前最小距離且在閾值內，更新最近文字
+                        if min_d < min_distance and min_d < 50:  # 閾值可調整
+                            min_distance = min_d
+                            nearest_text = text_content
+                    
+                    # 如果找到鄰近文字，提取鋼筋信息
+                    if nearest_text:
+                        number, diameter, count = self.extract_rebar_info(nearest_text)
+                        remark = nearest_text
+                    
+                    # 如果沒有找到鋼筋號數，給予默認編號
+                    if not number:
+                        number = f"未標註-{unnamed_counter}"
+                        unnamed_counter += 1
+                        count = 1
+                    
+                    # 計算重量
+                    unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
+                    weight = self.calculate_rebar_weight(number, line_length, count) if number.startswith("#") else 0
+                    
+                    # 新增到資料表
+                    rebar_data.append({
+                        "編號": number,
+                        "直徑": diameter,
+                        "長度(mm)": round(line_length, 2),
+                        "數量": count,
+                        "單位重(kg/m)": unit_weight,
+                        "總重量(kg)": weight,
+                        "圖層": layer,
+                        "備註": remark
+                    })
+                    
+                    # 更新統計數據
+                    rebar_stats["總長度"] += line_length * count
+                    rebar_stats["總重量"] += weight
                     
                     processed_count += 1
                     if processed_count % 100 == 0:
@@ -460,56 +469,83 @@ class CADtoExcelConverter:
                         self.progress["value"] = min(80, progress)
                         self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
             
-            # 處理 POLYLINE 和 LWPOLYLINE 實體
-            for entity_type in ["POLYLINE", "LWPOLYLINE"]:
-                if entity_type in selected_entities:
-                    polyline_count = len(msp.query(entity_type))
-                    stats["各類型數量"]["多段線"] = polyline_count
-                    stats["總數量"] += polyline_count
-                    
-                    for polyline in msp.query(entity_type):
+            # 處理多段線
+            for polyline_type in ["POLYLINE", "LWPOLYLINE"]:
+                if polyline_type in selected_entities:
+                    for polyline in msp.query(polyline_type):
                         try:
-                            if entity_type == "POLYLINE":
+                            # 取得多段線點集
+                            if polyline_type == "POLYLINE":
                                 vertices = list(polyline.vertices())
                                 points = [(v.dxf.location.x, v.dxf.location.y, v.dxf.location.z) for v in vertices]
                             else:  # LWPOLYLINE
                                 points = list(polyline.points())
                                 points = [(p[0], p[1], 0) if len(p) >= 2 else (p[0], 0, 0) for p in points]
                             
+                            # 計算長度
                             try:
                                 if hasattr(polyline, 'length') and callable(getattr(polyline, 'length')):
-                                    length = polyline.length()
+                                    polyline_length = polyline.length()
                                 else:
-                                    length = self.calculate_polyline_length(points)
+                                    polyline_length = self.calculate_polyline_length(points)
                             except:
-                                length = 0
+                                polyline_length = 0
                                 self.log_message(f"警告: 無法計算多段線長度")
                             
-                            stats["總長度"] += length
+                            layer = polyline.dxf.layer if self.attributes["圖層"].get() else ""
                             
-                            # 估算重量 (假設直徑10mm)
-                            weight = self.calculate_weight(length, diameter=10)
-                            stats["總重量"] += weight
+                            # 嘗試尋找鄰近的文字標註
+                            number = None
+                            diameter = None
+                            count = 1
+                            remark = ""
                             
-                            is_closed = "未知"
-                            try:
-                                is_closed = "是" if polyline.closed else "否"
-                            except:
-                                pass
+                            # 如果有點集，以第一個點作為參考
+                            if points:
+                                # 查找最接近多段線起點的文字
+                                min_distance = float('inf')
+                                nearest_text = None
                                 
-                            row = {
-                                "實體類型": "多段線",
-                                "內容": "",
-                                "號數": "",
-                                "點數": len(points) if self.attributes["尺寸"].get() else "",
-                                "長度": length if self.attributes["尺寸"].get() else "",
-                                "重量": weight if self.attributes["尺寸"].get() else "",
-                                "是否閉合": is_closed if self.attributes["尺寸"].get() else "",
-                                "圖層": polyline.dxf.layer if self.attributes["圖層"].get() else "",
-                                "顏色": polyline.dxf.color if self.attributes["顏色"].get() else "",
-                                "線型": polyline.dxf.linetype if self.attributes["線型"].get() else ""
-                            }
-                            data.append(row)
+                                for text_pos, text_content in text_entities.items():
+                                    # 計算文字到多段線起點的距離
+                                    d = math.sqrt((text_pos[0] - points[0][0])**2 + (text_pos[1] - points[0][1])**2)
+                                    
+                                    # 如果距離小於當前最小距離且在閾值內，更新最近文字
+                                    if d < min_distance and d < 50:  # 閾值可調整
+                                        min_distance = d
+                                        nearest_text = text_content
+                                
+                                # 如果找到鄰近文字，提取鋼筋信息
+                                if nearest_text:
+                                    number, diameter, count = self.extract_rebar_info(nearest_text)
+                                    remark = nearest_text
+                            
+                            # 如果沒有找到鋼筋號數，給予默認編號
+                            if not number:
+                                number = f"未標註-{unnamed_counter}"
+                                unnamed_counter += 1
+                                count = 1
+                            
+                            # 計算重量
+                            unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
+                            weight = self.calculate_rebar_weight(number, polyline_length, count) if number.startswith("#") else 0
+                            
+                            # 新增到資料表
+                            rebar_data.append({
+                                "編號": number,
+                                "直徑": diameter,
+                                "長度(mm)": round(polyline_length, 2),
+                                "數量": count,
+                                "單位重(kg/m)": unit_weight,
+                                "總重量(kg)": weight,
+                                "圖層": layer,
+                                "備註": remark
+                            })
+                            
+                            # 更新統計數據
+                            rebar_stats["總長度"] += polyline_length * count
+                            rebar_stats["總重量"] += weight
+                            
                         except Exception as e:
                             self.log_message(f"警告: 處理多段線實體時發生問題: {str(e)}")
                         
@@ -519,112 +555,159 @@ class CADtoExcelConverter:
                             self.progress["value"] = min(80, progress)
                             self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
             
-            # 處理 BLOCK 實體
-            if "BLOCK" in selected_entities:
-                block_count = len(msp.query("INSERT"))
-                stats["各類型數量"]["圖塊"] = block_count
-                stats["總數量"] += block_count
-                
-                for block_ref in msp.query("INSERT"):
-                    try:
-                        row = {
-                            "實體類型": "圖塊",
-                            "內容": block_ref.dxf.name,
-                            "號數": "",
-                            "X縮放": block_ref.dxf.xscale if self.attributes["尺寸"].get() else "",
-                            "Y縮放": block_ref.dxf.yscale if self.attributes["尺寸"].get() else "",
-                            "旋轉角度": block_ref.dxf.rotation if self.attributes["尺寸"].get() else "",
-                            "圖層": block_ref.dxf.layer if self.attributes["圖層"].get() else "",
-                            "顏色": block_ref.dxf.color if self.attributes["顏色"].get() else "",
-                        }
-                        data.append(row)
-                    except AttributeError as e:
-                        self.log_message(f"警告: 處理圖塊實體時發生問題: {str(e)}")
-                    
-                    processed_count += 1
-                    if processed_count % 100 == 0:
-                        progress = 20 + int(60 * processed_count / entity_count)
-                        self.progress["value"] = min(80, progress)
-                        self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
-            
             self.progress["value"] = 80
             self.log_message(f"已處理完成 {processed_count} 個實體")
             
-            # 添加統計資料
-            stats_row = {
-                "實體類型": "統計",
-                "總數量": stats["總數量"],
-                "總長度": round(stats["總長度"], 2),
-                "總重量": round(stats["總重量"], 2),
-                "各類型數量": ", ".join([f"{k}: {v}" for k, v in stats["各類型數量"].items()])
-            }
-            data.append(stats_row)
+            # 根據號數排序
+            sorted_data = sorted(rebar_data, key=lambda x: x["編號"] if "#" in x["編號"] else "z" + x["編號"])
             
             # 檢查數據是否為空
-            if not data:
-                self.log_message("警告: 沒有找到任何可轉換的數據")
-                messagebox.showwarning("警告", "沒有找到任何可轉換的數據")
+            if not sorted_data:
+                self.log_message("警告: 沒有找到任何可轉換的鋼筋數據")
+                messagebox.showwarning("警告", "沒有找到任何可轉換的鋼筋數據")
                 self.progress["value"] = 0
                 return
             
             # 創建 DataFrame
-            df = pd.DataFrame(data)
+            df = pd.DataFrame(sorted_data)
+            
+            # 重新排列欄位
+            columns = ["編號", "直徑", "長度(mm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+            df = df.reindex(columns=columns)
             
             # 寫入 Excel
             self.log_message(f"正在寫入資料到 Excel: {self.excel_path.get()}")
             
             try:
-                # 使用 pandas 直接寫入，更為穩定
-                df.to_excel(self.excel_path.get(), sheet_name='CAD數據', index=False)
-                self.log_message("Excel 已基本寫入，正在套用格式...")
+                # 創建 Excel 工作簿
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.title = "鋼筋計料"
                 
-                # 使用 openpyxl 進行格式化
-                wb = openpyxl.load_workbook(self.excel_path.get())
-                ws = wb['CAD數據']
+                # 設定標題
+                project_name = os.path.basename(self.cad_path.get())
+                ws['A1'] = f"鋼筋計料表"
+                ws['A2'] = f"專案名稱: {project_name}"
+                
+                # 合併儲存格
+                ws.merge_cells('A1:H1')
+                ws.merge_cells('A2:H2')
                 
                 # 設定標題樣式
-                header_font = Font(bold=True)
-                header_alignment = Alignment(horizontal='center', vertical='center')
-                header_border = Border(
-                    left=Side(style='thin'),
-                    right=Side(style='thin'),
-                    top=Side(style='thin'),
-                    bottom=Side(style='thin')
-                )
+                title_font = Font(bold=True, size=16)
+                subtitle_font = Font(bold=True, size=12)
+                ws['A1'].font = title_font
+                ws['A2'].font = subtitle_font
                 
-                # 應用標題樣式
-                for col_num in range(1, len(df.columns) + 1):
-                    cell = ws.cell(row=1, column=col_num)
+                # 居中對齊
+                title_align = Alignment(horizontal='center', vertical='center')
+                ws['A1'].alignment = title_align
+                ws['A2'].alignment = title_align
+                
+                # 設定表頭 (從第3行開始)
+                headers = ["編號", "直徑", "長度(mm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+                for col_num, header in enumerate(headers, 1):
+                    cell = ws.cell(row=3, column=col_num)
+                    cell.value = header
+                    
+                    # 設定表頭樣式
+                    header_font = Font(bold=True)
+                    header_align = Alignment(horizontal='center', vertical='center')
+                    header_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+                    header_border = Border(
+                        left=Side(style='thin'),
+                        right=Side(style='thin'),
+                        top=Side(style='thin'),
+                        bottom=Side(style='thin')
+                    )
+                    
                     cell.font = header_font
-                    cell.alignment = header_alignment
+                    cell.alignment = header_align
+                    cell.fill = header_fill
                     cell.border = header_border
                 
+                # 寫入資料 (從第4行開始)
+                row_num = 4
+                for _, row in df.iterrows():
+                    for col_num, col_name in enumerate(headers, 1):
+                        cell = ws.cell(row=row_num, column=col_num)
+                        
+                        # 獲取對應的值
+                        if col_name in row:
+                            cell.value = row[col_name]
+                        
+                        # 設定資料樣式
+                        data_align = Alignment(horizontal='center', vertical='center')
+                        data_border = Border(
+                            left=Side(style='thin'),
+                            right=Side(style='thin'),
+                            top=Side(style='thin'),
+                            bottom=Side(style='thin')
+                        )
+                        
+                        cell.alignment = data_align
+                        cell.border = data_border
+                        
+                        # 根據編號設定不同顏色
+                        if col_num == 1 and row["編號"].startswith("#"):
+                            cell.font = Font(bold=True)
+                    
+                    row_num += 1
+                
+                # 添加統計行
+                summary_row = row_num
+                ws.cell(row=summary_row, column=1).value = "總計"
+                ws.cell(row=summary_row, column=1).font = Font(bold=True)
+                
+                # 總數量
+                ws.cell(row=summary_row, column=4).value = df["數量"].sum()
+                ws.cell(row=summary_row, column=4).font = Font(bold=True)
+                
+                # 總重量
+                ws.cell(row=summary_row, column=6).value = round(df["總重量(kg)"].sum(), 2)
+                ws.cell(row=summary_row, column=6).font = Font(bold=True)
+                
+                # 為統計行設定樣式
+                for col in range(1, 9):
+                    cell = ws.cell(row=summary_row, column=col)
+                    cell.border = Border(
+                        left=Side(style='thin'),
+                        right=Side(style='thin'),
+                        top=Side(style='thin'),
+                        bottom=Side(style='double')
+                    )
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                
                 # 調整列寬
-                for column in ws.columns:
-                    max_length = 0
-                    column_letter = openpyxl.utils.get_column_letter(column[0].column)
-                    for cell in column:
-                        try:
-                            if len(str(cell.value)) > max_length:
-                                max_length = min(len(str(cell.value)), 50)  # 限制最大寬度
-                        except:
-                            pass
-                    adjusted_width = (max_length + 2) * 1.2
-                    ws.column_dimensions[column_letter].width = min(adjusted_width, 50)  # 限制最大寬度
+                column_widths = {
+                    1: 12,  # 編號
+                    2: 10,  # 直徑
+                    3: 15,  # 長度
+                    4: 10,  # 數量
+                    5: 15,  # 單位重
+                    6: 15,  # 總重量
+                    7: 15,  # 圖層
+                    8: 30,  # 備註
+                }
+                
+                for col_num, width in column_widths.items():
+                    column_letter = openpyxl.utils.get_column_letter(col_num)
+                    ws.column_dimensions[column_letter].width = width
                 
                 # 儲存檔案
                 wb.save(self.excel_path.get())
+                
                 self.log_message("Excel 格式套用完成")
                 
             except Exception as e:
                 self.log_message(f"警告: Excel 格式化時出現問題: {str(e)}")
                 self.log_message("嘗試使用基本儲存方式...")
                 # 如果格式化失敗，至少確保數據被保存
-                df.to_excel(self.excel_path.get(), sheet_name='CAD數據', index=False)
+                df.to_excel(self.excel_path.get(), sheet_name='鋼筋計料', index=False)
             
             self.progress["value"] = 100
             self.log_message("轉換完成!")
-            messagebox.showinfo("成功", f"CAD資料已成功轉換為Excel檔案:\n{self.excel_path.get()}")
+            messagebox.showinfo("成功", f"鋼筋計料已成功轉換為Excel檔案:\n{self.excel_path.get()}")
             
         except Exception as e:
             self.log_message(f"錯誤: {str(e)}")
