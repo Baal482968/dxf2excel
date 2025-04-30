@@ -112,11 +112,11 @@ class CADtoExcelConverter:
             
             self.entity_types = {
                 "TEXT": tk.BooleanVar(value=True),
-                "LINE": tk.BooleanVar(value=True),
+                "LINE": tk.BooleanVar(value=False),
                 "CIRCLE": tk.BooleanVar(value=False),
                 "ARC": tk.BooleanVar(value=False),
-                "POLYLINE": tk.BooleanVar(value=True),
-                "LWPOLYLINE": tk.BooleanVar(value=True),
+                "POLYLINE": tk.BooleanVar(value=False),
+                "LWPOLYLINE": tk.BooleanVar(value=False),
                 "BLOCK": tk.BooleanVar(value=False)
             }
             
@@ -220,9 +220,9 @@ class CADtoExcelConverter:
         self.cad_path.set("")
         self.excel_path.set("")
         self.entity_types["TEXT"].set(True)
-        self.entity_types["LINE"].set(True)
-        self.entity_types["POLYLINE"].set(True)
-        self.entity_types["LWPOLYLINE"].set(True)
+        self.entity_types["LINE"].set(False)
+        self.entity_types["POLYLINE"].set(False)
+        self.entity_types["LWPOLYLINE"].set(False)
         self.entity_types["CIRCLE"].set(False)
         self.entity_types["ARC"].set(False)
         self.entity_types["BLOCK"].set(False)
@@ -290,16 +290,15 @@ class CADtoExcelConverter:
             return None, None, None, None
             
         number = ""
-        diameter = ""
         count = 1
         length = None
+        segments = []  # 新增：儲存分段長度
         
         # 尋找鋼筋號數 (支援多種格式)
         # 格式1: #3, #4 等
         number_match = re.search(r'#(\d+)', text)
         if number_match:
             number = "#" + number_match.group(1)
-            diameter = self.get_rebar_diameter(number)
         
         # 格式2: D13, D16 等
         if not number:
@@ -307,7 +306,7 @@ class CADtoExcelConverter:
             if number_match:
                 diameter = float(number_match.group(1))
                 # 根據直徑反推號數
-                for num, dia in self.rebar_diameter.items():
+                for num, dia in self.rebar_unit_weight.items():
                     if abs(dia - diameter) < 0.1:
                         number = num
                         break
@@ -318,7 +317,7 @@ class CADtoExcelConverter:
             if number_match:
                 diameter = float(number_match.group(1))
                 # 根據直徑反推號數
-                for num, dia in self.rebar_diameter.items():
+                for num, dia in self.rebar_unit_weight.items():
                     if abs(dia - diameter) < 0.1:
                         number = num
                         break
@@ -330,7 +329,8 @@ class CADtoExcelConverter:
             try:
                 # 解析多段長度
                 length_parts = length_count_match.group(1).split('+')
-                total_length = sum(float(part) for part in length_parts)
+                segments = [float(part) for part in length_parts]  # 儲存分段長度
+                total_length = sum(segments)
                 length = total_length
                 count = int(length_count_match.group(2))
             except:
@@ -345,7 +345,7 @@ class CADtoExcelConverter:
                 except:
                     count = 1
         
-        return number, diameter, count, length
+        return number, count, length, segments
     
     def get_rebar_diameter(self, number):
         """根據鋼筋號數獲取直徑(mm)"""
@@ -461,30 +461,37 @@ class CADtoExcelConverter:
                         text_entities[position] = text_content
                         
                         # 直接從文字提取鋼筋資訊
-                        number, diameter, count, length = self.extract_rebar_info(text_content)
+                        number, count, length, segments = self.extract_rebar_info(text_content)
                         if number:
                             rebar_stats["各類型數量"][number] = rebar_stats["各類型數量"].get(number, 0) + count
                             rebar_stats["總數量"] += count
                             
                             # 如果有長度資訊，直接加入資料表
                             if length is not None:
-                                # 將長度從mm轉換為cm
-                                length_cm = length / 10.0
+                                # 將長度從mm轉換為cm（移除除以10的轉換）
+                                length_cm = length
                                 # 計算重量
                                 unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
                                 weight = self.calculate_rebar_weight(number, length_cm, count) if number.startswith("#") else 0
                                 
                                 # 新增到資料表
-                                rebar_data.append({
+                                data = {
                                     "編號": number,
-                                    "直徑": diameter,
                                     "長度(cm)": round(length_cm, 2),
                                     "數量": count,
                                     "單位重(kg/m)": unit_weight,
                                     "總重量(kg)": weight,
                                     "圖層": text.dxf.layer if self.attributes["圖層"].get() else "",
                                     "備註": text_content
-                                })
+                                }
+                                
+                                # 添加分段長度欄位
+                                if segments:
+                                    for i, segment in enumerate(segments):
+                                        letter = chr(65 + i)  # A, B, C, ...
+                                        data[f"{letter}(cm)"] = round(segment, 2)
+                                
+                                rebar_data.append(data)
                                 
                                 # 更新統計數據
                                 rebar_stats["總長度"] += length_cm * count
@@ -493,187 +500,9 @@ class CADtoExcelConverter:
                                 # 記錄詳細資訊
                                 self.log_message(f"找到鋼筋標記: {text_content}")
                                 self.log_message(f"  號數: {number}")
-                                self.log_message(f"  直徑: {diameter}mm")
                                 self.log_message(f"  長度: {length_cm}cm")
                                 self.log_message(f"  數量: {count}")
                                 self.log_message(f"  重量: {weight}kg")
-            
-            # 處理線條和多段線實體 (鋼筋主體)
-            if "LINE" in selected_entities:
-                for line in msp.query("LINE"):
-                    # 取得線條資訊
-                    start_point = (line.dxf.start.x, line.dxf.start.y, line.dxf.start.z)
-                    end_point = (line.dxf.end.x, line.dxf.end.y, line.dxf.end.z)
-                    line_length = self.calculate_line_length(start_point, end_point)
-                    # 將長度從mm轉換為cm
-                    line_length_cm = line_length / 10.0
-                    layer = line.dxf.layer if self.attributes["圖層"].get() else ""
-                    
-                    # 嘗試尋找鄰近的文字標註
-                    number = None
-                    diameter = None
-                    count = 1
-                    remark = ""
-                    
-                    # 查找最接近線條端點的文字
-                    min_distance = float('inf')
-                    nearest_text = None
-                    
-                    for text_pos, text_content in text_entities.items():
-                        # 計算文字到線條兩端的距離
-                        d1 = math.sqrt((text_pos[0] - start_point[0])**2 + (text_pos[1] - start_point[1])**2)
-                        d2 = math.sqrt((text_pos[0] - end_point[0])**2 + (text_pos[1] - end_point[1])**2)
-                        min_d = min(d1, d2)
-                        
-                        # 如果距離小於當前最小距離且在閾值內，更新最近文字
-                        if min_d < min_distance and min_d < 50:  # 閾值可調整
-                            min_distance = min_d
-                            nearest_text = text_content
-                    
-                    # 如果找到鄰近文字，提取鋼筋信息
-                    if nearest_text:
-                        number, diameter, count, length = self.extract_rebar_info(nearest_text)
-                        remark = nearest_text
-                    
-                    # 如果沒有找到鋼筋號數，給予默認編號
-                    if not number:
-                        number = f"未標註-{unnamed_counter}"
-                        unnamed_counter += 1
-                        count = 1
-                    
-                    # 計算重量
-                    unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
-                    weight = self.calculate_rebar_weight(number, line_length_cm, count) if number.startswith("#") else 0
-                    
-                    # 新增到資料表
-                    rebar_data.append({
-                        "編號": number,
-                        "直徑": diameter,
-                        "長度(cm)": round(line_length_cm, 2),
-                        "數量": count,
-                        "單位重(kg/m)": unit_weight,
-                        "總重量(kg)": weight,
-                        "圖層": layer,
-                        "備註": remark
-                    })
-                    
-                    # 更新統計數據
-                    rebar_stats["總長度"] += line_length_cm * count
-                    rebar_stats["總重量"] += weight
-                    
-                    processed_count += 1
-                    if processed_count % 100 == 0:
-                        progress = 20 + int(60 * processed_count / entity_count)
-                        self.progress["value"] = min(80, progress)
-                        self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
-            
-            # 處理多段線
-            for polyline_type in ["POLYLINE", "LWPOLYLINE"]:
-                if polyline_type in selected_entities:
-                    for polyline in msp.query(polyline_type):
-                        try:
-                            # 取得多段線點集
-                            points = []
-                            for entity in polyline.virtual_entities():
-                                if entity.dxftype() == 'LINE':
-                                    points.append((entity.dxf.start.x, entity.dxf.start.y, entity.dxf.start.z))
-                                    points.append((entity.dxf.end.x, entity.dxf.end.y, entity.dxf.end.z))
-                                elif entity.dxftype() == 'ARC':
-                                    # 對於圓弧，我們需要計算多個點來近似
-                                    center = (entity.dxf.center.x, entity.dxf.center.y, entity.dxf.center.z)
-                                    radius = entity.dxf.radius
-                                    start_angle = math.radians(entity.dxf.start_angle)
-                                    end_angle = math.radians(entity.dxf.end_angle)
-                                    
-                                    # 計算圓弧上的多個點
-                                    num_points = 10  # 圓弧上的點數
-                                    for i in range(num_points + 1):
-                                        angle = start_angle + (end_angle - start_angle) * i / num_points
-                                        x = center[0] + radius * math.cos(angle)
-                                        y = center[1] + radius * math.sin(angle)
-                                        points.append((x, y, center[2]))
-                            
-                            # 移除重複的點
-                            unique_points = []
-                            for point in points:
-                                if point not in unique_points:
-                                    unique_points.append(point)
-                            points = unique_points
-                            
-                            # 計算長度
-                            try:
-                                if hasattr(polyline, 'length') and callable(getattr(polyline, 'length')):
-                                    polyline_length = polyline.length()
-                                else:
-                                    polyline_length = self.calculate_polyline_length(points)
-                            except:
-                                polyline_length = 0
-                                self.log_message(f"警告: 無法計算多段線長度")
-                            
-                            # 將長度從mm轉換為cm
-                            polyline_length_cm = polyline_length / 10.0
-                            layer = polyline.dxf.layer if self.attributes["圖層"].get() else ""
-                            
-                            # 嘗試尋找鄰近的文字標註
-                            number = None
-                            diameter = None
-                            count = 1
-                            remark = ""
-                            
-                            # 如果有點集，以第一個點作為參考
-                            if points:
-                                # 查找最接近多段線起點的文字
-                                min_distance = float('inf')
-                                nearest_text = None
-                                
-                                for text_pos, text_content in text_entities.items():
-                                    # 計算文字到多段線起點的距離
-                                    d = math.sqrt((text_pos[0] - points[0][0])**2 + (text_pos[1] - points[0][1])**2)
-                                    
-                                    # 如果距離小於當前最小距離且在閾值內，更新最近文字
-                                    if d < min_distance and d < 50:  # 閾值可調整
-                                        min_distance = d
-                                        nearest_text = text_content
-                                
-                                # 如果找到鄰近文字，提取鋼筋信息
-                                if nearest_text:
-                                    number, diameter, count, length = self.extract_rebar_info(nearest_text)
-                                    remark = nearest_text
-                            
-                            # 如果沒有找到鋼筋號數，給予默認編號
-                            if not number:
-                                number = f"未標註-{unnamed_counter}"
-                                unnamed_counter += 1
-                                count = 1
-                            
-                            # 計算重量
-                            unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
-                            weight = self.calculate_rebar_weight(number, polyline_length_cm, count) if number.startswith("#") else 0
-                            
-                            # 新增到資料表
-                            rebar_data.append({
-                                "編號": number,
-                                "直徑": diameter,
-                                "長度(cm)": round(polyline_length_cm, 2),
-                                "數量": count,
-                                "單位重(kg/m)": unit_weight,
-                                "總重量(kg)": weight,
-                                "圖層": layer,
-                                "備註": remark
-                            })
-                            
-                            # 更新統計數據
-                            rebar_stats["總長度"] += polyline_length_cm * count
-                            rebar_stats["總重量"] += weight
-                            
-                        except Exception as e:
-                            self.log_message(f"警告: 處理多段線實體時發生問題: {str(e)}")
-                        
-                        processed_count += 1
-                        if processed_count % 100 == 0:
-                            progress = 20 + int(60 * processed_count / entity_count)
-                            self.progress["value"] = min(80, progress)
-                            self.log_message(f"已處理 {processed_count}/{entity_count} 個實體")
             
             self.progress["value"] = 80
             self.log_message(f"已處理完成 {processed_count} 個實體")
@@ -688,11 +517,23 @@ class CADtoExcelConverter:
                 self.progress["value"] = 0
                 return
             
-            # 創建 DataFrame
-            df = pd.DataFrame(sorted_data)
-            
             # 重新排列欄位
-            columns = ["編號", "直徑", "長度(cm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+            base_columns = ["編號", "長度(cm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+            
+            # 找出所有可能的分段長度欄位
+            segment_columns = set()
+            for item in sorted_data:
+                for key in item.keys():
+                    if key.endswith("(cm)") and key != "長度(cm)":
+                        segment_columns.add(key)
+            
+            # 按字母順序排序分段長度欄位
+            segment_columns = sorted(segment_columns)
+            
+            # 在長度欄位後插入分段長度欄位
+            columns = base_columns[:2] + segment_columns + base_columns[2:]
+            
+            df = pd.DataFrame(sorted_data)
             df = df.reindex(columns=columns)
             
             # 寫入 Excel
@@ -725,7 +566,8 @@ class CADtoExcelConverter:
                 ws['A2'].alignment = title_align
                 
                 # 設定表頭 (從第3行開始)
-                headers = ["編號", "直徑", "長度(cm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+                headers = columns
+                
                 for col_num, header in enumerate(headers, 1):
                     cell = ws.cell(row=3, column=col_num)
                     cell.value = header
@@ -801,14 +643,17 @@ class CADtoExcelConverter:
                 # 調整列寬
                 column_widths = {
                     1: 12,  # 編號
-                    2: 10,  # 直徑
-                    3: 15,  # 長度
-                    4: 10,  # 數量
-                    5: 15,  # 單位重
-                    6: 15,  # 總重量
-                    7: 15,  # 圖層
-                    8: 30,  # 備註
+                    2: 15,  # 長度
+                    3: 10,  # 數量
+                    4: 15,  # 單位重
+                    5: 15,  # 總重量
+                    6: 15,  # 圖層
+                    7: 30,  # 備註
                 }
+                
+                # 添加分段長度欄位的寬度
+                for i in range(len(segment_columns)):
+                    column_widths[3 + i] = 12  # 分段長度欄位寬度
                 
                 for col_num, width in column_widths.items():
                     column_letter = openpyxl.utils.get_column_letter(col_num)
