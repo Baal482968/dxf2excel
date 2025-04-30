@@ -384,6 +384,68 @@ class CADtoExcelConverter:
             return round(unit_weight * length_m * count, 2)
         return 0
     
+    def draw_ascii_rebar(self, segments):
+        """使用 ASCII 字元繪製彎折示意圖"""
+        if not segments:
+            return "─"
+            
+        # 如果只有一段，直接畫直線
+        if len(segments) == 1:
+            length = str(int(segments[0]))
+            line = "─" * min(10, max(3, int(segments[0] / 50)))
+            # 計算需要的空格數來置中數字
+            total_width = max(len(line), len(length))
+            length_spaces = (total_width - len(length)) // 2
+            line_spaces = (total_width - len(line)) // 2
+            return f"{' ' * length_spaces}{length}\n{' ' * line_spaces}{line}"
+        
+        # 如果有多段，畫彎折圖
+        lines = []  # 用於存儲多行文字
+        
+        # 計算中間段的長度（用於對齊）
+        middle_segments = segments[1:-1] if len(segments) > 2 else segments[1:]
+        middle_length = sum(middle_segments)
+        middle_chars = min(10, max(3, int(middle_length / 50)))
+        
+        # 構建第二行（線條）
+        line = ""
+        # 起始段
+        start_num = str(int(segments[0]))
+        line += f"{start_num} |"
+        
+        # 中間段
+        if middle_length:
+            line += "─" * middle_chars
+        
+        # 結束段
+        if len(segments) > 2:
+            end_num = str(int(segments[-1]))
+            line += f"| {end_num}"
+        elif len(segments) == 2:
+            end_num = str(int(segments[-1]))
+            line += f"| {end_num}"
+        
+        # 第一行：中間段的長度（置中對齊）
+        if middle_length:
+            middle_num = str(int(middle_length))
+            # 計算整個圖形的寬度
+            total_width = len(line)
+            # 計算中間數字的起始位置
+            # 中間數字應該在中間段的中心位置
+            start_pos = len(start_num) + 2  # 起始數字加上 " |" 的長度
+            middle_section_width = middle_chars  # 中間段的寬度
+            middle_start = start_pos + (middle_section_width - len(middle_num)) // 2
+            
+            # 創建第一行，先填充空格
+            first_line = " " * total_width
+            # 在正確位置插入中間數字
+            first_line = first_line[:middle_start] + middle_num + first_line[middle_start + len(middle_num):]
+            lines.append(first_line)
+        
+        lines.append(line)
+        
+        return "\n".join(lines)
+    
     def convert_cad_to_excel(self):
         try:
             self.progress["value"] = 10
@@ -518,7 +580,7 @@ class CADtoExcelConverter:
                 return
             
             # 重新排列欄位
-            base_columns = ["編號", "長度(cm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+            base_columns = ["編號", "長度(cm)", "數量", "總重量(kg)", "圖示", "備註"]
             
             # 找出所有可能的分段長度欄位
             segment_columns = set()
@@ -534,6 +596,15 @@ class CADtoExcelConverter:
             columns = base_columns[:2] + segment_columns + base_columns[2:]
             
             df = pd.DataFrame(sorted_data)
+            
+            # 添加圖示欄位
+            for index, row in df.iterrows():
+                segments = []
+                for key in sorted([k for k in row.keys() if k.endswith("(cm)") and k != "長度(cm)"]):
+                    if not pd.isna(row[key]):
+                        segments.append(row[key])
+                df.at[index, "圖示"] = self.draw_ascii_rebar(segments)
+            
             df = df.reindex(columns=columns)
             
             # 寫入 Excel
@@ -599,7 +670,7 @@ class CADtoExcelConverter:
                             cell.value = row[col_name]
                         
                         # 設定資料樣式
-                        data_align = Alignment(horizontal='center', vertical='center')
+                        data_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
                         data_border = Border(
                             left=Side(style='thin'),
                             right=Side(style='thin'),
@@ -614,6 +685,9 @@ class CADtoExcelConverter:
                         if col_num == 1 and row["編號"].startswith("#"):
                             cell.font = Font(bold=True)
                     
+                    # 調整行高以適應圖示
+                    ws.row_dimensions[row_num].height = 60
+                    
                     row_num += 1
                 
                 # 添加統計行
@@ -622,15 +696,17 @@ class CADtoExcelConverter:
                 ws.cell(row=summary_row, column=1).font = Font(bold=True)
                 
                 # 總數量
-                ws.cell(row=summary_row, column=4).value = df["數量"].sum()
-                ws.cell(row=summary_row, column=4).font = Font(bold=True)
+                quantity_col = headers.index("數量") + 1
+                ws.cell(row=summary_row, column=quantity_col).value = df["數量"].sum()
+                ws.cell(row=summary_row, column=quantity_col).font = Font(bold=True)
                 
                 # 總重量
-                ws.cell(row=summary_row, column=6).value = round(df["總重量(kg)"].sum(), 2)
-                ws.cell(row=summary_row, column=6).font = Font(bold=True)
+                weight_col = headers.index("總重量(kg)") + 1
+                ws.cell(row=summary_row, column=weight_col).value = round(df["總重量(kg)"].sum(), 2)
+                ws.cell(row=summary_row, column=weight_col).font = Font(bold=True)
                 
                 # 為統計行設定樣式
-                for col in range(1, 9):
+                for col in range(1, len(headers) + 1):
                     cell = ws.cell(row=summary_row, column=col)
                     cell.border = Border(
                         left=Side(style='thin'),
@@ -640,24 +716,25 @@ class CADtoExcelConverter:
                     )
                     cell.alignment = Alignment(horizontal='center', vertical='center')
                 
-                # 調整列寬
+                # 設定欄位寬度
                 column_widths = {
-                    1: 12,  # 編號
-                    2: 15,  # 長度
-                    3: 10,  # 數量
-                    4: 15,  # 單位重
-                    5: 15,  # 總重量
-                    6: 15,  # 圖層
-                    7: 30,  # 備註
+                    "編號": 8,
+                    "長度(cm)": 10,
+                    "數量": 8,
+                    "總重量(kg)": 12,
+                    "圖示": 60,
+                    "備註": 60
                 }
                 
-                # 添加分段長度欄位的寬度
-                for i in range(len(segment_columns)):
-                    column_widths[3 + i] = 12  # 分段長度欄位寬度
+                # 設定分段長度欄位的寬度
+                for col in segment_columns:
+                    column_widths[col] = 8
                 
-                for col_num, width in column_widths.items():
-                    column_letter = openpyxl.utils.get_column_letter(col_num)
-                    ws.column_dimensions[column_letter].width = width
+                # 根據欄位名稱設定寬度
+                for col_num, header in enumerate(headers, 1):
+                    if header in column_widths:
+                        column_letter = openpyxl.utils.get_column_letter(col_num)
+                        ws.column_dimensions[column_letter].width = column_widths[header]
                 
                 # 儲存檔案
                 wb.save(self.excel_path.get())
