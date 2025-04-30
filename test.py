@@ -379,8 +379,8 @@ class CADtoExcelConverter:
         """計算鋼筋總重量"""
         unit_weight = self.get_rebar_unit_weight(number)
         if unit_weight and length:
-            # 將長度從mm轉換為m
-            length_m = length / 1000.0
+            # 將長度從cm轉換為m
+            length_m = length / 100.0
             return round(unit_weight * length_m * count, 2)
         return 0
     
@@ -468,15 +468,17 @@ class CADtoExcelConverter:
                             
                             # 如果有長度資訊，直接加入資料表
                             if length is not None:
+                                # 將長度從mm轉換為cm
+                                length_cm = length / 10.0
                                 # 計算重量
                                 unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
-                                weight = self.calculate_rebar_weight(number, length, count) if number.startswith("#") else 0
+                                weight = self.calculate_rebar_weight(number, length_cm, count) if number.startswith("#") else 0
                                 
                                 # 新增到資料表
                                 rebar_data.append({
                                     "編號": number,
                                     "直徑": diameter,
-                                    "長度(mm)": round(length, 2),
+                                    "長度(cm)": round(length_cm, 2),
                                     "數量": count,
                                     "單位重(kg/m)": unit_weight,
                                     "總重量(kg)": weight,
@@ -485,14 +487,14 @@ class CADtoExcelConverter:
                                 })
                                 
                                 # 更新統計數據
-                                rebar_stats["總長度"] += length * count
+                                rebar_stats["總長度"] += length_cm * count
                                 rebar_stats["總重量"] += weight
                                 
                                 # 記錄詳細資訊
                                 self.log_message(f"找到鋼筋標記: {text_content}")
                                 self.log_message(f"  號數: {number}")
                                 self.log_message(f"  直徑: {diameter}mm")
-                                self.log_message(f"  長度: {length}mm")
+                                self.log_message(f"  長度: {length_cm}cm")
                                 self.log_message(f"  數量: {count}")
                                 self.log_message(f"  重量: {weight}kg")
             
@@ -503,6 +505,8 @@ class CADtoExcelConverter:
                     start_point = (line.dxf.start.x, line.dxf.start.y, line.dxf.start.z)
                     end_point = (line.dxf.end.x, line.dxf.end.y, line.dxf.end.z)
                     line_length = self.calculate_line_length(start_point, end_point)
+                    # 將長度從mm轉換為cm
+                    line_length_cm = line_length / 10.0
                     layer = line.dxf.layer if self.attributes["圖層"].get() else ""
                     
                     # 嘗試尋找鄰近的文字標註
@@ -539,13 +543,13 @@ class CADtoExcelConverter:
                     
                     # 計算重量
                     unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
-                    weight = self.calculate_rebar_weight(number, line_length, count) if number.startswith("#") else 0
+                    weight = self.calculate_rebar_weight(number, line_length_cm, count) if number.startswith("#") else 0
                     
                     # 新增到資料表
                     rebar_data.append({
                         "編號": number,
                         "直徑": diameter,
-                        "長度(mm)": round(line_length, 2),
+                        "長度(cm)": round(line_length_cm, 2),
                         "數量": count,
                         "單位重(kg/m)": unit_weight,
                         "總重量(kg)": weight,
@@ -554,7 +558,7 @@ class CADtoExcelConverter:
                     })
                     
                     # 更新統計數據
-                    rebar_stats["總長度"] += line_length * count
+                    rebar_stats["總長度"] += line_length_cm * count
                     rebar_stats["總重量"] += weight
                     
                     processed_count += 1
@@ -586,6 +590,8 @@ class CADtoExcelConverter:
                                 polyline_length = 0
                                 self.log_message(f"警告: 無法計算多段線長度")
                             
+                            # 將長度從mm轉換為cm
+                            polyline_length_cm = polyline_length / 10.0
                             layer = polyline.dxf.layer if self.attributes["圖層"].get() else ""
                             
                             # 嘗試尋找鄰近的文字標註
@@ -622,13 +628,13 @@ class CADtoExcelConverter:
                             
                             # 計算重量
                             unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
-                            weight = self.calculate_rebar_weight(number, polyline_length, count) if number.startswith("#") else 0
+                            weight = self.calculate_rebar_weight(number, polyline_length_cm, count) if number.startswith("#") else 0
                             
                             # 新增到資料表
                             rebar_data.append({
                                 "編號": number,
                                 "直徑": diameter,
-                                "長度(mm)": round(polyline_length, 2),
+                                "長度(cm)": round(polyline_length_cm, 2),
                                 "數量": count,
                                 "單位重(kg/m)": unit_weight,
                                 "總重量(kg)": weight,
@@ -637,7 +643,7 @@ class CADtoExcelConverter:
                             })
                             
                             # 更新統計數據
-                            rebar_stats["總長度"] += polyline_length * count
+                            rebar_stats["總長度"] += polyline_length_cm * count
                             rebar_stats["總重量"] += weight
                             
                         except Exception as e:
@@ -666,7 +672,7 @@ class CADtoExcelConverter:
             df = pd.DataFrame(sorted_data)
             
             # 重新排列欄位
-            columns = ["編號", "直徑", "長度(mm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+            columns = ["編號", "直徑", "長度(cm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
             df = df.reindex(columns=columns)
             
             # 寫入 Excel
@@ -699,7 +705,7 @@ class CADtoExcelConverter:
                 ws['A2'].alignment = title_align
                 
                 # 設定表頭 (從第3行開始)
-                headers = ["編號", "直徑", "長度(mm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
+                headers = ["編號", "直徑", "長度(cm)", "數量", "單位重(kg/m)", "總重量(kg)", "圖層", "備註"]
                 for col_num, header in enumerate(headers, 1):
                     cell = ws.cell(row=3, column=col_num)
                     cell.value = header
