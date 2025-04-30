@@ -91,70 +91,6 @@ class CADtoExcelConverter:
             ttk.Entry(excel_frame, textvariable=self.excel_path, width=50).pack(side=tk.LEFT, padx=5)
             ttk.Button(excel_frame, text="瀏覽...", command=self.browse_excel_file).pack(side=tk.LEFT)
             
-            # 轉換設定框架
-            settings_frame = ttk.LabelFrame(main_frame, text="轉換設定", padding="10")
-            settings_frame.pack(fill=tk.X, pady=10)
-            
-            # 材質選擇
-            material_frame = ttk.Frame(settings_frame)
-            material_frame.pack(fill=tk.X, pady=5)
-            
-            ttk.Label(material_frame, text="選擇材質:").pack(side=tk.LEFT)
-            self.material_var = tk.StringVar(value=self.default_material)
-            material_combo = ttk.Combobox(material_frame, textvariable=self.material_var, values=list(self.material_density.keys()))
-            material_combo.pack(side=tk.LEFT, padx=5)
-            
-            # 要轉換的實體類型
-            entity_frame = ttk.Frame(settings_frame)
-            entity_frame.pack(fill=tk.X, pady=5)
-            
-            ttk.Label(entity_frame, text="選擇實體類型:").pack(side=tk.LEFT)
-            
-            self.entity_types = {
-                "TEXT": tk.BooleanVar(value=True),
-                "LINE": tk.BooleanVar(value=False),
-                "CIRCLE": tk.BooleanVar(value=False),
-                "ARC": tk.BooleanVar(value=False),
-                "POLYLINE": tk.BooleanVar(value=False),
-                "LWPOLYLINE": tk.BooleanVar(value=False),
-                "BLOCK": tk.BooleanVar(value=False)
-            }
-            
-            entity_check_frame = ttk.Frame(settings_frame)
-            entity_check_frame.pack(fill=tk.X, pady=5)
-            
-            col = 0
-            for entity, var in self.entity_types.items():
-                ttk.Checkbutton(entity_check_frame, text=entity, variable=var).grid(row=0, column=col, padx=5)
-                col += 1
-                if col > 3:
-                    col = 0
-            
-            # 屬性選擇
-            attr_frame = ttk.Frame(settings_frame)
-            attr_frame.pack(fill=tk.X, pady=5)
-            
-            ttk.Label(attr_frame, text="選擇屬性:").pack(side=tk.LEFT)
-            
-            self.attributes = {
-                "圖層": tk.BooleanVar(value=True),
-                "顏色": tk.BooleanVar(value=True),
-                "文字內容": tk.BooleanVar(value=True),
-                "尺寸": tk.BooleanVar(value=True),
-                "線型": tk.BooleanVar(value=False),
-                "號數": tk.BooleanVar(value=True)
-            }
-            
-            attr_check_frame = ttk.Frame(settings_frame)
-            attr_check_frame.pack(fill=tk.X, pady=5)
-            
-            col = 0
-            for attr, var in self.attributes.items():
-                ttk.Checkbutton(attr_check_frame, text=attr, variable=var).grid(row=0, column=col, padx=5)
-                col += 1
-                if col > 3:
-                    col = 0
-            
             # 執行按鈕
             button_frame = ttk.Frame(main_frame)
             button_frame.pack(fill=tk.X, pady=20)
@@ -219,18 +155,6 @@ class CADtoExcelConverter:
     def reset_form(self):
         self.cad_path.set("")
         self.excel_path.set("")
-        self.entity_types["TEXT"].set(True)
-        self.entity_types["LINE"].set(False)
-        self.entity_types["POLYLINE"].set(False)
-        self.entity_types["LWPOLYLINE"].set(False)
-        self.entity_types["CIRCLE"].set(False)
-        self.entity_types["ARC"].set(False)
-        self.entity_types["BLOCK"].set(False)
-        
-        for var in self.attributes.values():
-            var.set(True)
-        self.attributes["線型"].set(False)
-        
         self.status_text.delete(1.0, tk.END)
         self.progress["value"] = 0
     
@@ -477,9 +401,9 @@ class CADtoExcelConverter:
             
             self.progress["value"] = 20
             
-            # 收集要轉換的實體類型
-            selected_entities = [entity for entity, var in self.entity_types.items() if var.get()]
-            self.log_message(f"選定的實體類型: {', '.join(selected_entities)}")
+            # 使用固定的實體類型
+            selected_entities = ["TEXT"]
+            self.log_message(f"處理實體類型: {', '.join(selected_entities)}")
             
             # 準備鋼筋資料表
             rebar_data = []
@@ -514,57 +438,56 @@ class CADtoExcelConverter:
             
             # 處理 TEXT 實體 (通常包含鋼筋標記)
             text_entities = {}
-            if "TEXT" in selected_entities:
-                for text in msp.query("TEXT"):
-                    text_content = text.dxf.text if self.attributes["文字內容"].get() else ""
-                    if text_content:
-                        # 儲存文本位置和內容，稍後用於匹配線條
-                        position = (text.dxf.insert.x, text.dxf.insert.y)
-                        text_entities[position] = text_content
+            for text in msp.query("TEXT"):
+                text_content = text.dxf.text
+                if text_content:
+                    # 儲存文本位置和內容，稍後用於匹配線條
+                    position = (text.dxf.insert.x, text.dxf.insert.y)
+                    text_entities[position] = text_content
+                    
+                    # 直接從文字提取鋼筋資訊
+                    number, count, length, segments = self.extract_rebar_info(text_content)
+                    if number:
+                        rebar_stats["各類型數量"][number] = rebar_stats["各類型數量"].get(number, 0) + count
+                        rebar_stats["總數量"] += count
                         
-                        # 直接從文字提取鋼筋資訊
-                        number, count, length, segments = self.extract_rebar_info(text_content)
-                        if number:
-                            rebar_stats["各類型數量"][number] = rebar_stats["各類型數量"].get(number, 0) + count
-                            rebar_stats["總數量"] += count
+                        # 如果有長度資訊，直接加入資料表
+                        if length is not None:
+                            # 將長度從mm轉換為cm（移除除以10的轉換）
+                            length_cm = length
+                            # 計算重量
+                            unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
+                            weight = self.calculate_rebar_weight(number, length_cm, count) if number.startswith("#") else 0
                             
-                            # 如果有長度資訊，直接加入資料表
-                            if length is not None:
-                                # 將長度從mm轉換為cm（移除除以10的轉換）
-                                length_cm = length
-                                # 計算重量
-                                unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
-                                weight = self.calculate_rebar_weight(number, length_cm, count) if number.startswith("#") else 0
-                                
-                                # 新增到資料表
-                                data = {
-                                    "編號": number,
-                                    "長度(cm)": round(length_cm, 2),
-                                    "數量": count,
-                                    "單位重(kg/m)": unit_weight,
-                                    "總重量(kg)": weight,
-                                    "圖層": text.dxf.layer if self.attributes["圖層"].get() else "",
-                                    "備註": text_content
-                                }
-                                
-                                # 添加分段長度欄位
-                                if segments:
-                                    for i, segment in enumerate(segments):
-                                        letter = chr(65 + i)  # A, B, C, ...
-                                        data[f"{letter}(cm)"] = round(segment, 2)
-                                
-                                rebar_data.append(data)
-                                
-                                # 更新統計數據
-                                rebar_stats["總長度"] += length_cm * count
-                                rebar_stats["總重量"] += weight
-                                
-                                # 記錄詳細資訊
-                                self.log_message(f"找到鋼筋標記: {text_content}")
-                                self.log_message(f"  號數: {number}")
-                                self.log_message(f"  長度: {length_cm}cm")
-                                self.log_message(f"  數量: {count}")
-                                self.log_message(f"  重量: {weight}kg")
+                            # 新增到資料表
+                            data = {
+                                "編號": number,
+                                "長度(cm)": round(length_cm, 2),
+                                "數量": count,
+                                "單位重(kg/m)": unit_weight,
+                                "總重量(kg)": weight,
+                                "圖層": text.dxf.layer,
+                                "備註": text_content
+                            }
+                            
+                            # 添加分段長度欄位
+                            if segments:
+                                for i, segment in enumerate(segments):
+                                    letter = chr(65 + i)  # A, B, C, ...
+                                    data[f"{letter}(cm)"] = round(segment, 2)
+                            
+                            rebar_data.append(data)
+                            
+                            # 更新統計數據
+                            rebar_stats["總長度"] += length_cm * count
+                            rebar_stats["總重量"] += weight
+                            
+                            # 記錄詳細資訊
+                            self.log_message(f"找到鋼筋標記: {text_content}")
+                            self.log_message(f"  號數: {number}")
+                            self.log_message(f"  長度: {length_cm}cm")
+                            self.log_message(f"  數量: {count}")
+                            self.log_message(f"  重量: {weight}kg")
             
             self.progress["value"] = 80
             self.log_message(f"已處理完成 {processed_count} 個實體")
