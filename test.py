@@ -573,12 +573,32 @@ class CADtoExcelConverter:
                     for polyline in msp.query(polyline_type):
                         try:
                             # 取得多段線點集
-                            if polyline_type == "POLYLINE":
-                                vertices = list(polyline.vertices())
-                                points = [(v.dxf.location.x, v.dxf.location.y, v.dxf.location.z) for v in vertices]
-                            else:  # LWPOLYLINE
-                                points = list(polyline.points())
-                                points = [(p[0], p[1], 0) if len(p) >= 2 else (p[0], 0, 0) for p in points]
+                            points = []
+                            for entity in polyline.virtual_entities():
+                                if entity.dxftype() == 'LINE':
+                                    points.append((entity.dxf.start.x, entity.dxf.start.y, entity.dxf.start.z))
+                                    points.append((entity.dxf.end.x, entity.dxf.end.y, entity.dxf.end.z))
+                                elif entity.dxftype() == 'ARC':
+                                    # 對於圓弧，我們需要計算多個點來近似
+                                    center = (entity.dxf.center.x, entity.dxf.center.y, entity.dxf.center.z)
+                                    radius = entity.dxf.radius
+                                    start_angle = math.radians(entity.dxf.start_angle)
+                                    end_angle = math.radians(entity.dxf.end_angle)
+                                    
+                                    # 計算圓弧上的多個點
+                                    num_points = 10  # 圓弧上的點數
+                                    for i in range(num_points + 1):
+                                        angle = start_angle + (end_angle - start_angle) * i / num_points
+                                        x = center[0] + radius * math.cos(angle)
+                                        y = center[1] + radius * math.sin(angle)
+                                        points.append((x, y, center[2]))
+                            
+                            # 移除重複的點
+                            unique_points = []
+                            for point in points:
+                                if point not in unique_points:
+                                    unique_points.append(point)
+                            points = unique_points
                             
                             # 計算長度
                             try:
