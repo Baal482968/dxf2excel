@@ -316,7 +316,8 @@ class CADtoExcelConverter:
         # 如果只有一段，直接畫直線
         if len(segments) == 1:
             length = str(int(segments[0]))
-            line = "─" * min(10, max(3, int(segments[0] / 50)))
+            # 固定橫線長度為 10 個字元
+            line = "─" * 10
             # 計算需要的空格數來置中數字
             total_width = max(len(line), len(length))
             length_spaces = (total_width - len(length)) // 2
@@ -326,10 +327,8 @@ class CADtoExcelConverter:
         # 如果有多段，畫彎折圖
         lines = []  # 用於存儲多行文字
         
-        # 計算中間段的長度（用於對齊）
-        middle_segments = segments[1:-1] if len(segments) > 2 else segments[1:]
-        middle_length = sum(middle_segments)
-        middle_chars = min(10, max(3, int(middle_length / 50)))
+        # 固定中間段的長度
+        middle_chars = 10  # 固定為 10 個字元
         
         # 構建第二行（線條）
         line = ""
@@ -338,7 +337,7 @@ class CADtoExcelConverter:
         line += f"{start_num} |"
         
         # 中間段
-        if middle_length:
+        if len(segments) > 1:
             line += "─" * middle_chars
         
         # 結束段
@@ -350,8 +349,8 @@ class CADtoExcelConverter:
             line += f"| {end_num}"
         
         # 第一行：中間段的長度（置中對齊）
-        if middle_length:
-            middle_num = str(int(middle_length))
+        if len(segments) > 1:
+            middle_num = str(int(sum(segments[1:-1] if len(segments) > 2 else segments[1:])))
             # 計算整個圖形的寬度
             total_width = len(line)
             # 計算中間數字的起始位置
