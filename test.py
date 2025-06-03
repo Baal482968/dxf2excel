@@ -15,7 +15,7 @@ class ModernCADtoExcelConverter:
     def __init__(self, root):
         try:
             self.root = root
-            self.root.title("CAD 鋼筋計料轉換工具 Pro v2.0")
+            self.root.title("CAD 鋼筋計料轉換工具 Pro v2.1")
             self.root.geometry("900x750")
             self.root.resizable(True, True)
             
@@ -54,11 +54,21 @@ class ModernCADtoExcelConverter:
                 "#17": 31.20, "#18": 39.70
             }
             
+            # 標準鋼筋彎曲半徑 (根據鋼筋直徑)
+            self.bend_radius = {
+                '#2': 3, '#3': 3, '#4': 4, '#5': 5, '#6': 6, '#7': 7, '#8': 8,
+                '#9': 9, '#10': 10, '#11': 11, '#12': 12, '#13': 13, '#14': 14,
+                '#15': 15, '#16': 16, '#17': 17, '#18': 18
+            }
+            
             # 處理進度相關變數
             self.current_step = 0
             self.total_steps = 0
             self.step_descriptions = {}
             self.processing_start_time = 0
+            
+            # 檢查圖形繪製功能
+            self.graphics_available = self.check_graphics_dependencies()
             
             self.setup_modern_styles()
             self.setup_ui()
@@ -66,6 +76,230 @@ class ModernCADtoExcelConverter:
         except Exception as e:
             print(f"初始化錯誤: {str(e)}")
             messagebox.showerror("錯誤", f"程式初始化時發生錯誤:\n{str(e)}")
+    
+    def check_graphics_dependencies(self):
+        """檢查圖形繪製所需的套件"""
+        try:
+            import matplotlib
+            import numpy
+            from PIL import Image
+            self.log_message = lambda x: print(x)  # 臨時設定，稍後會被覆蓋
+            return True
+        except ImportError as e:
+            missing_packages = []
+            try:
+                import matplotlib
+            except ImportError:
+                missing_packages.append("matplotlib")
+            
+            try:
+                import numpy
+            except ImportError:
+                missing_packages.append("numpy")
+            
+            try:
+                from PIL import Image
+            except ImportError:
+                missing_packages.append("pillow")
+            
+            print(f"⚠️ 缺少圖形繪製套件: {', '.join(missing_packages)}")
+            print("請執行: pip install matplotlib numpy pillow")
+            return False
+    
+    def install_graphics_dependencies(self):
+        """嘗試自動安裝圖形繪製套件"""
+        try:
+            import subprocess
+            import sys
+            
+            packages = ["matplotlib", "numpy", "pillow"]
+            self.log_message("🔄 正在安裝圖形繪製套件...")
+            
+            for package in packages:
+                try:
+                    __import__(package if package != "pillow" else "PIL")
+                except ImportError:
+                    self.log_message(f"正在安裝 {package}...")
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+                    self.log_message(f"✅ {package} 安裝成功")
+            
+            self.graphics_available = True
+            self.log_message("🎨 圖形繪製功能已啟用")
+            return True
+            
+        except Exception as e:
+            self.log_message(f"❌ 自動安裝失敗: {str(e)}")
+            self.log_message("請手動執行: pip install matplotlib numpy pillow")
+            return False
+    
+    # ====== 圖形化鋼筋繪製方法 ======
+    
+    def enhanced_draw_rebar_diagram(self, segments, rebar_number="#4"):
+        """
+        增強版鋼筋圖示生成方法
+        生成專業的圖形化鋼筋彎曲形狀圖
+        """
+        if not self.graphics_available:
+            return self.draw_ascii_rebar(segments)
+        
+        try:
+            if not segments:
+                return "無分段資料"
+            
+            # 如果只有一段，繪製直鋼筋
+            if len(segments) == 1:
+                return self._draw_straight_rebar_diagram(segments[0], rebar_number)
+            
+            # 多段鋼筋，根據段數選擇不同形狀
+            if len(segments) == 2:
+                return self._draw_l_shaped_diagram(segments[0], segments[1], rebar_number)
+            elif len(segments) == 3:
+                return self._draw_u_shaped_diagram(segments[0], segments[1], segments[2], rebar_number)
+            else:
+                return self._draw_complex_rebar_diagram(segments, rebar_number)
+                
+        except Exception as e:
+            self.log_message(f"⚠️ 圖形生成錯誤: {str(e)}，使用簡化圖示")
+            return self.draw_ascii_rebar(segments)
+    
+    def _draw_straight_rebar_diagram(self, length, rebar_number):
+        """繪製直鋼筋的專業圖示"""
+        try:
+            l_str = str(int(length))
+            material_grade = self._get_material_grade(rebar_number)
+            
+            lines = []
+            lines.append(f"直鋼筋 {rebar_number}")
+            lines.append(f"長度: {l_str}cm")
+            lines.append(f"等級: {material_grade}")
+            lines.append("├" + "─" * (len(l_str) + 8) + "┤")
+            lines.append(f"  {l_str}cm")
+            lines.append("└" + "─" * (len(l_str) + 8) + "┘")
+            
+            return "\n".join(lines)
+            
+        except Exception:
+            return f"直鋼筋 {rebar_number}: {int(length)}cm"
+
+    def _draw_l_shaped_diagram(self, length1, length2, rebar_number):
+        """繪製 L 型鋼筋專業圖示"""
+        try:
+            l1_str = str(int(length1))
+            l2_str = str(int(length2))
+            material_grade = self._get_material_grade(rebar_number)
+            bend_r = self.bend_radius.get(rebar_number, 5)
+            
+            lines = []
+            lines.append(f"L型鋼筋 {rebar_number}")
+            lines.append(f"等級: {material_grade}")
+            lines.append(f"彎曲半徑: R{bend_r}cm")
+            lines.append("")
+            lines.append(f"    {l1_str}cm")
+            lines.append("┌" + "─" * (max(len(l1_str), 8) + 2) + "┐")
+            lines.append("│" + " " * (max(len(l1_str), 8) + 2) + "│")
+            lines.append("│" + " " * (max(len(l1_str), 8) + 2) + "│")
+            lines.append("│" + " " * (max(len(l1_str), 8) + 2) + f"│ {l2_str}cm")
+            lines.append("│" + " " * (max(len(l1_str), 8) + 2) + "│")
+            lines.append("│" + " " * (max(len(l1_str), 8) + 2) + "│")
+            lines.append("└" + "─" * (max(len(l1_str), 8) + 2) + "┘")
+            
+            return "\n".join(lines)
+            
+        except Exception:
+            return f"L型 {rebar_number}: {int(length1)}+{int(length2)}cm"
+
+    def _draw_u_shaped_diagram(self, length1, length2, length3, rebar_number):
+        """繪製 U 型鋼筋專業圖示"""
+        try:
+            l1_str = str(int(length1))
+            l2_str = str(int(length2))
+            l3_str = str(int(length3))
+            material_grade = self._get_material_grade(rebar_number)
+            bend_r = self.bend_radius.get(rebar_number, 5)
+            
+            lines = []
+            lines.append(f"U型鋼筋 {rebar_number}")
+            lines.append(f"等級: {material_grade}")
+            lines.append(f"彎曲半徑: R{bend_r}cm")
+            lines.append("")
+            lines.append(f"{l2_str}cm     {l1_str}cm     {l3_str}cm")
+            lines.append("│" + " " * (max(len(l1_str), 12) + 4) + "│")
+            lines.append("│" + " " * (max(len(l1_str), 12) + 4) + "│")
+            lines.append("│" + " " * (max(len(l1_str), 12) + 4) + "│")
+            lines.append("│" + " " * (max(len(l1_str), 12) + 4) + "│")
+            lines.append("└" + "─" * (max(len(l1_str), 12) + 4) + "┘")
+            
+            return "\n".join(lines)
+            
+        except Exception:
+            return f"U型 {rebar_number}: {int(length1)}+{int(length2)}+{int(length3)}cm"
+
+    def _draw_complex_rebar_diagram(self, segments, rebar_number):
+        """繪製複雜多段鋼筋專業圖示"""
+        try:
+            total_length = sum(segments)
+            segment_str = "+".join([str(int(s)) for s in segments])
+            material_grade = self._get_material_grade(rebar_number)
+            
+            lines = []
+            lines.append(f"多段彎曲鋼筋 {rebar_number}")
+            lines.append(f"等級: {material_grade}")
+            lines.append(f"分段: {segment_str}cm")
+            lines.append(f"總長: {int(total_length)}cm")
+            lines.append("")
+            
+            # 根據段數創建不同的圖案
+            if len(segments) == 4:
+                lines.extend([
+                    "┌─────────┬─────────┐",
+                    "│         │         │",
+                    "│         │         │",
+                    "│         └─────────┤",
+                    "│                   │",
+                    "└───────────────────┘"
+                ])
+            elif len(segments) == 5:
+                lines.extend([
+                    "┌─────┬─────┬─────┐",
+                    "│     │     │     │",
+                    "│     │     └─────┤",
+                    "│     │           │",
+                    "│     └───────────┤",
+                    "│                 │",
+                    "└─────────────────┘"
+                ])
+            else:
+                # 通用多段圖案
+                width = min(len(segments) * 4, 20)
+                lines.extend([
+                    "┌" + "─┬─" * min(len(segments)-1, 5) + "─┐",
+                    "│" + " │ " * min(len(segments)-1, 5) + " │",
+                    "│" + " └─" * min(len(segments)-1, 5) + " │",
+                    "│" + " " * width + "│",
+                    "└" + "─" * width + "┘"
+                ])
+            
+            return "\n".join(lines)
+            
+        except Exception:
+            return f"多段 {rebar_number}: {'+'.join([str(int(s)) for s in segments])}cm"
+    
+    def _get_material_grade(self, rebar_number):
+        """根據鋼筋編號獲取材料等級"""
+        if rebar_number.startswith('#'):
+            try:
+                num = int(rebar_number[1:])
+                if num <= 6:
+                    return "SD280"
+                elif num <= 10:
+                    return "SD420"
+                else:
+                    return "SD490"
+            except:
+                pass
+        return "SD280"
+    
+    # ====== 保留原有的所有方法 ======
     
     def setup_modern_styles(self):
         """設定現代化樣式"""
@@ -112,17 +346,17 @@ class ModernCADtoExcelConverter:
                            font=("Segoe UI", 10, "bold"))
         
         self.style.configure("Primary.TButton",
-                           background=self.colors['primary'],
-                           foreground='white',
-                           font=("Segoe UI", 14, "bold"),  # 放大按鈕文字
+                           background='black',
+                           foreground='#FFD700',  # 亮黃色
+                           font=("Segoe UI", 14, "bold"),
                            relief='flat',
                            borderwidth=0,
                            focuscolor='none')
         
         self.style.configure("Secondary.TButton",
-                           background=self.colors['accent'],
-                           foreground=self.colors['text_primary'],
-                           font=("Segoe UI", 12),  # 放大次要按鈕文字
+                           background='black',
+                           foreground='#FFD700',  # 亮黃色
+                           font=("Segoe UI", 12),
                            relief='flat',
                            borderwidth=1,
                            focuscolor='none')
@@ -143,10 +377,10 @@ class ModernCADtoExcelConverter:
         
         # 配置 hover 效果
         self.style.map("Primary.TButton",
-                      background=[('active', self.colors['secondary'])])
+                      background=[('active', '#333333')])  # 深灰色
         
         self.style.map("Secondary.TButton",
-                      background=[('active', self.colors['border'])])
+                      background=[('active', '#333333')])  # 深灰色
     
     def create_card_frame(self, parent, title="", padding=20):
         """創建卡片式框架"""
@@ -173,6 +407,49 @@ class ModernCADtoExcelConverter:
         
         return content_frame
     
+    def create_material_button(self, parent, text, command, is_primary=True):
+        """創建 Material Design 風格的按鈕"""
+        # 創建外層框架用於陰影效果
+        shadow_frame = tk.Frame(parent, bg=self.colors['background'])
+        # shadow_frame.pack(side=tk.RIGHT, padx=5, pady=5)  # 由外部決定 pack
+        
+        # 深灰色文字
+        text_color = '#222222'
+        
+        # 創建按鈕
+        btn = tk.Button(shadow_frame, text=text,
+                       command=command,
+                       bg='#2196F3' if is_primary else '#424242',  # Material Blue 或 Dark Grey
+                       fg=text_color,
+                       activebackground='#1976D2' if is_primary else '#616161',  # Darker Blue 或 Darker Grey
+                       activeforeground=text_color,
+                       highlightbackground='#2196F3' if is_primary else '#424242',
+                       highlightcolor='#2196F3' if is_primary else '#424242',
+                       font=("Segoe UI", 12, "bold"),
+                       relief='flat',
+                       bd=0,
+                       cursor='hand2',
+                       padx=20,
+                       pady=10)
+        btn.pack(fill=tk.BOTH, expand=True)
+        
+        # 添加圓角效果
+        btn.configure(highlightthickness=0)
+        
+        # 添加 hover 效果
+        def on_enter(e):
+            btn.configure(bg='#1976D2' if is_primary else '#616161', fg=text_color)
+            shadow_frame.configure(bg='#1976D2' if is_primary else '#616161')
+        
+        def on_leave(e):
+            btn.configure(bg='#2196F3' if is_primary else '#424242', fg=text_color)
+            shadow_frame.configure(bg=self.colors['background'])
+        
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+        
+        return btn, shadow_frame
+    
     def setup_ui(self):
         """設定現代化使用者介面"""
         # 主容器
@@ -191,9 +468,10 @@ class ModernCADtoExcelConverter:
                              font=("Segoe UI", 20, "bold"))
         title_label.pack()
         
-        # 副標題
+        # 副標題 - 增加圖形化功能說明
+        graphics_status = "✅ 圖形化功能已啟用" if self.graphics_available else "⚠️ 圖形化功能未啟用"
         subtitle_label = tk.Label(header_frame,
-                                text="專業級 DXF 檔案鋼筋數據分析與 Excel 報表生成工具",
+                                text=f"專業級 DXF 檔案鋼筋數據分析與 Excel 報表生成工具 | {graphics_status}",
                                 bg=self.colors['background'],
                                 fg=self.colors['text_secondary'],
                                 font=("Segoe UI", 11))
@@ -201,11 +479,19 @@ class ModernCADtoExcelConverter:
         
         # 版本標籤
         version_label = tk.Label(header_frame,
-                               text="v2.0 Professional Edition",
+                               text="v2.1 Professional Edition with Graphics",
                                bg=self.colors['background'],
                                fg=self.colors['success'],
                                font=("Segoe UI", 9, "bold"))
         version_label.pack(pady=(5, 0))
+        
+        # 如果圖形功能未啟用，添加安裝按鈕
+        if not self.graphics_available:
+            install_frame = tk.Frame(header_frame, bg=self.colors['background'])
+            install_frame.pack(pady=(10, 0))
+            
+            self.install_button, self.install_shadow = self.create_material_button(
+                install_frame, "🔧 安裝圖形繪製套件", self.install_graphics_dependencies, True)
         
         # 輸入檔案卡片
         input_card = self.create_card_frame(main_container, "📁 輸入檔案設定")
@@ -225,22 +511,19 @@ class ModernCADtoExcelConverter:
         
         self.cad_path = tk.StringVar()
         self.cad_entry = tk.Entry(cad_input_frame, textvariable=self.cad_path,
-                                font=("Segoe UI", 11),  # 放大字體
-                                bg=self.colors['surface'],  # 深色背景
-                                fg=self.colors['text_primary'],  # 白色文字
-                                insertbackground=self.colors['primary'],  # 游標顏色
+                                font=("Segoe UI", 11),
+                                bg=self.colors['surface'],
+                                fg=self.colors['text_primary'],
+                                insertbackground=self.colors['primary'],
                                 relief='solid', bd=1,
-                                selectbackground=self.colors['primary'],  # 選取背景色
-                                selectforeground='white')  # 選取文字顏色
+                                selectbackground=self.colors['primary'],
+                                selectforeground='white')
         self.cad_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8)
         
-        browse_cad_btn = tk.Button(cad_input_frame, text="📂 瀏覽",
-                                 command=self.browse_cad_file,
-                                 bg=self.colors['primary'], fg='white',
-                                 font=("Segoe UI", 12, "bold"),  # 放大瀏覽按鈕文字
-                                 relief='flat', bd=0,
-                                 cursor='hand2', padx=20)
-        browse_cad_btn.pack(side=tk.RIGHT, padx=(10, 0), ipady=8)
+        # 瀏覽按鈕
+        self.browse_cad_button, self.browse_cad_shadow = self.create_material_button(
+            cad_input_frame, "📂 瀏覽", self.browse_cad_file, True)
+        self.browse_cad_shadow.pack(side=tk.RIGHT, padx=(10, 0), ipady=2)
         
         # 檔案資訊顯示
         self.file_info_label = tk.Label(cad_section, text="",
@@ -267,22 +550,19 @@ class ModernCADtoExcelConverter:
         
         self.excel_path = tk.StringVar()
         excel_entry = tk.Entry(excel_input_frame, textvariable=self.excel_path,
-                             font=("Segoe UI", 11),  # 放大字體
-                             bg=self.colors['surface'],  # 深色背景
-                             fg=self.colors['text_primary'],  # 白色文字
-                             insertbackground=self.colors['primary'],  # 游標顏色
+                             font=("Segoe UI", 11),
+                             bg=self.colors['surface'],
+                             fg=self.colors['text_primary'],
+                             insertbackground=self.colors['primary'],
                              relief='solid', bd=1,
-                             selectbackground=self.colors['primary'],  # 選取背景色
-                             selectforeground='white')  # 選取文字顏色
+                             selectbackground=self.colors['primary'],
+                             selectforeground='white')
         excel_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8)
         
-        browse_excel_btn = tk.Button(excel_input_frame, text="💾 另存新檔",
-                                   command=self.browse_excel_file,
-                                   bg=self.colors['secondary'], fg='white',
-                                   font=("Segoe UI", 12, "bold"),  # 放大另存新檔按鈕文字
-                                   relief='flat', bd=0,
-                                   cursor='hand2', padx=20)
-        browse_excel_btn.pack(side=tk.RIGHT, padx=(10, 0), ipady=8)
+        # Excel 瀏覽按鈕
+        self.browse_excel_button, self.browse_excel_shadow = self.create_material_button(
+            excel_input_frame, "💾 另存新檔", self.browse_excel_file, True)
+        self.browse_excel_shadow.pack(side=tk.RIGHT, padx=(10, 0), ipady=2)
         
         # 控制按鈕區域
         control_card = self.create_card_frame(main_container, "🎮 執行控制")
@@ -291,22 +571,15 @@ class ModernCADtoExcelConverter:
         button_frame.pack(fill=tk.X)
         
         # 主要按鈕
-        self.convert_button = tk.Button(button_frame, text="🚀 開始轉換",
-                                      command=self.start_conversion,
-                                      bg=self.colors['success'], fg='white',
-                                      font=("Segoe UI", 16, "bold"),  # 放大主要按鈕文字
-                                      relief='flat', bd=0,
-                                      cursor='hand2', padx=30, pady=10)
-        self.convert_button.pack(side=tk.RIGHT)
+        button_text = "🚀 開始轉換 (含圖形)" if self.graphics_available else "🚀 開始轉換"
+        self.convert_button, self.convert_shadow = self.create_material_button(
+            button_frame, button_text, self.start_conversion, True)
+        self.convert_shadow.pack(side=tk.LEFT, padx=(0, 10), ipady=2)
         
         # 次要按鈕
-        reset_btn = tk.Button(button_frame, text="🔄 重置",
-                            command=self.reset_form,
-                            bg=self.colors['accent'], fg=self.colors['text_primary'],
-                            font=("Segoe UI", 14),  # 放大重置按鈕文字
-                            relief='flat', bd=1,
-                            cursor='hand2', padx=20, pady=8)
-        reset_btn.pack(side=tk.RIGHT, padx=(0, 10))
+        self.reset_button, self.reset_shadow = self.create_material_button(
+            button_frame, "🔄 重置", self.reset_form, False)
+        self.reset_shadow.pack(side=tk.LEFT, padx=(0, 10), ipady=2)
         
         # 快捷鍵提示
         shortcut_label = tk.Label(button_frame,
@@ -314,7 +587,7 @@ class ModernCADtoExcelConverter:
                                 bg=self.colors['surface'],
                                 fg=self.colors['text_secondary'],
                                 font=("Segoe UI", 9))
-        shortcut_label.pack(side=tk.LEFT)
+        shortcut_label.pack(side=tk.LEFT, padx=(10, 0))
         
         # 處理狀態卡片
         status_card = self.create_card_frame(main_container, "📊 處理狀態與進度")
@@ -370,8 +643,8 @@ class ModernCADtoExcelConverter:
         text_frame.pack(fill=tk.BOTH, expand=True)
         
         self.status_text = tk.Text(text_frame, height=10,
-                                 bg=self.colors['surface'],  # 修改文字框背景色
-                                 fg=self.colors['text_primary'],  # 修改文字框文字顏色
+                                 bg=self.colors['surface'],
+                                 fg=self.colors['text_primary'],
                                  font=("Consolas", 10),
                                  relief='solid', bd=1,
                                  wrap=tk.WORD)
@@ -384,13 +657,13 @@ class ModernCADtoExcelConverter:
         self.status_text.config(yscrollcommand=scrollbar.set)
         
         # 初始狀態訊息
-        self.log_message("🎉 程式已啟動！請選擇 CAD 檔案開始轉換流程。")
+        if self.graphics_available:
+            self.log_message("🎉 程式已啟動！圖形化功能已啟用，請選擇 CAD 檔案開始轉換流程。")
+        else:
+            self.log_message("🎉 程式已啟動！使用基本功能模式，請選擇 CAD 檔案開始轉換流程。")
         
         # 設定鍵盤快捷鍵
         self.setup_keyboard_shortcuts()
-        
-        # 添加 hover 效果
-        self.add_hover_effects()
     
     def add_hover_effects(self):
         """添加按鈕 hover 效果"""
@@ -552,6 +825,12 @@ class ModernCADtoExcelConverter:
         self.detail_progress_label.config(text="")
         self.time_label.config(text="")
         self.convert_button.config(state="normal")
+        
+        if self.graphics_available:
+            self.convert_button.config(text="🚀 開始轉換 (含圖形)")
+        else:
+            self.convert_button.config(text="🚀 開始轉換")
+        
         self.log_message("🔄 表單已重置，請重新選擇檔案。")
     
     def log_message(self, message):
@@ -590,7 +869,8 @@ class ModernCADtoExcelConverter:
         conversion_thread.daemon = True
         conversion_thread.start()
     
-    # [這裡包含所有原始的轉換邏輯函數]
+    # ====== 原有的計算方法 ======
+    
     def calculate_line_length(self, start_point, end_point):
         """計算兩點之間的距離"""
         return math.sqrt(
@@ -684,8 +964,10 @@ class ModernCADtoExcelConverter:
             return round(unit_weight * length_m * count, 2)
         return 0
     
+    # ====== 保留原有的 ASCII 繪圖方法作為備用 ======
+    
     def draw_ascii_rebar(self, segments):
-        """使用 ASCII 字元繪製彎折示意圖"""
+        """使用 ASCII 字元繪製彎折示意圖 (備用方法)"""
         if not segments:
             return "─"
             
@@ -727,6 +1009,8 @@ class ModernCADtoExcelConverter:
         
         lines.append(line)
         return "\n".join(lines)
+    
+    # ====== 主要轉換方法 ======
     
     def convert_cad_to_excel(self):
         try:
@@ -799,6 +1083,7 @@ class ModernCADtoExcelConverter:
                         length_cm = length
                         unit_weight = self.get_rebar_unit_weight(number) if number.startswith("#") else 0
                         weight = self.calculate_rebar_weight(number, length_cm, count) if number.startswith("#") else 0
+                        material_grade = self._get_material_grade(number)
                         
                         # 建立資料
                         data = {
@@ -807,6 +1092,7 @@ class ModernCADtoExcelConverter:
                             "數量": count,
                             "單位重(kg/m)": unit_weight,
                             "總重量(kg)": weight,
+                            "材料等級": material_grade,
                             "圖層": text.dxf.layer,
                             "備註": text_content
                         }
@@ -820,7 +1106,7 @@ class ModernCADtoExcelConverter:
                         rebar_data.append(data)
                         
                         if valid_rebar_count <= 5:  # 只顯示前5個的詳細資訊
-                            self.log_message(f"✅ 鋼筋 #{valid_rebar_count}: {number}, {length_cm}cm, {count}支")
+                            self.log_message(f"✅ 鋼筋 #{valid_rebar_count}: {number}, {length_cm}cm, {count}支, {material_grade}")
                 
                 processed_count += 1
             
@@ -856,7 +1142,7 @@ class ModernCADtoExcelConverter:
             self.update_progress(5, "正在建立 Excel 工作簿...")
             
             # 重新排列欄位
-            base_columns = ["編號", "長度(cm)", "數量", "總重量(kg)", "圖示", "備註"]
+            base_columns = ["編號", "長度(cm)", "數量", "總重量(kg)", "材料等級", "鋼筋圖示", "備註"]
             
             # 找出所有可能的分段長度欄位
             segment_columns = set()
@@ -873,14 +1159,22 @@ class ModernCADtoExcelConverter:
             
             df = pd.DataFrame(sorted_data)
             
-            # 添加圖示欄位
-            self.update_progress(percentage=75, detail="正在生成鋼筋圖示...")
+            # 添加圖示欄位 - 使用新的圖形化方法
+            self.update_progress(percentage=75, detail="正在生成專業鋼筋圖示...")
+            
+            if self.graphics_available:
+                self.log_message("🎨 使用圖形化鋼筋圖示生成...")
+            else:
+                self.log_message("📝 使用基本 ASCII 圖示生成...")
+            
             for index, row in df.iterrows():
                 segments = []
                 for key in sorted([k for k in row.keys() if k.endswith("(cm)") and k != "長度(cm)"]):
                     if not pd.isna(row[key]):
                         segments.append(row[key])
-                df.at[index, "圖示"] = self.draw_ascii_rebar(segments)
+                
+                # 使用新的增強版圖示生成方法
+                df.at[index, "鋼筋圖示"] = self.enhanced_draw_rebar_diagram(segments, row["編號"])
             
             df = df.reindex(columns=columns)
             
@@ -891,18 +1185,22 @@ class ModernCADtoExcelConverter:
                 # 創建 Excel 工作簿
                 wb = openpyxl.Workbook()
                 ws = wb.active
-                ws.title = "鋼筋計料"
+                ws.title = "鋼筋計料表"
                 
                 # 設定標題
                 project_name = os.path.basename(self.cad_path.get())
-                ws['A1'] = f"鋼筋計料表"
+                graphics_note = "（含專業圖形化圖示）" if self.graphics_available else "（基本模式）"
+                
+                ws['A1'] = f"🏗️ 專業鋼筋計料表 {graphics_note}"
                 ws['A2'] = f"專案名稱: {project_name}"
                 ws['A3'] = f"生成時間: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+                ws['A4'] = f"工具版本: CAD 鋼筋計料轉換工具 Pro v2.1"
                 
                 # 合併儲存格
                 ws.merge_cells('A1:H1')
                 ws.merge_cells('A2:H2')
                 ws.merge_cells('A3:H3')
+                ws.merge_cells('A4:H4')
                 
                 # 設定標題樣式
                 title_font = Font(bold=True, size=16)
@@ -912,16 +1210,18 @@ class ModernCADtoExcelConverter:
                 ws['A1'].font = title_font
                 ws['A2'].font = subtitle_font
                 ws['A3'].font = info_font
+                ws['A4'].font = info_font
                 
                 # 居中對齊
                 title_align = Alignment(horizontal='center', vertical='center')
                 ws['A1'].alignment = title_align
                 ws['A2'].alignment = title_align
                 ws['A3'].alignment = title_align
+                ws['A4'].alignment = title_align
                 
-                # 設定表頭 (從第5行開始)
+                # 設定表頭 (從第6行開始)
                 headers = columns
-                header_row = 5
+                header_row = 6
                 
                 for col_num, header in enumerate(headers, 1):
                     cell = ws.cell(row=header_row, column=col_num)
@@ -943,8 +1243,8 @@ class ModernCADtoExcelConverter:
                     cell.fill = header_fill
                     cell.border = header_border
                 
-                # 寫入資料 (從第6行開始)
-                data_start_row = 6
+                # 寫入資料 (從第7行開始)
+                data_start_row = 7
                 row_num = data_start_row
                 
                 self.update_progress(percentage=80, detail="正在寫入資料...")
@@ -978,9 +1278,19 @@ class ModernCADtoExcelConverter:
                         # 根據編號設定不同顏色
                         if col_num == 1 and row["編號"].startswith("#"):
                             cell.font = Font(bold=True)
+                        
+                        # 根據材料等級設定顏色
+                        if col_name == "材料等級":
+                            grade = row.get("材料等級", "")
+                            if grade == "SD280":
+                                cell.fill = PatternFill(start_color="E7F3FF", end_color="E7F3FF", fill_type="solid")
+                            elif grade == "SD420":
+                                cell.fill = PatternFill(start_color="FFF2E7", end_color="FFF2E7", fill_type="solid")
+                            elif grade == "SD490":
+                                cell.fill = PatternFill(start_color="F3E7FF", end_color="F3E7FF", fill_type="solid")
                     
                     # 調整行高以適應圖示
-                    ws.row_dimensions[row_num].height = 60
+                    ws.row_dimensions[row_num].height = 120 if self.graphics_available else 80
                     row_num += 1
                 
                 # 添加統計行
@@ -1012,23 +1322,52 @@ class ModernCADtoExcelConverter:
                 
                 # 設定欄位寬度
                 column_widths = {
-                    "編號": 8,
-                    "長度(cm)": 10,
-                    "數量": 8,
-                    "總重量(kg)": 12,
-                    "圖示": 60,
-                    "備註": 60
+                    "編號": 12,
+                    "長度(cm)": 15,
+                    "數量": 10,
+                    "總重量(kg)": 15,
+                    "材料等級": 15,
+                    "鋼筋圖示": 80 if self.graphics_available else 40,
+                    "備註": 30
                 }
                 
                 # 設定分段長度欄位的寬度
                 for col in segment_columns:
-                    column_widths[col] = 8
+                    column_widths[col] = 12
                 
                 # 根據欄位名稱設定寬度
                 for col_num, header in enumerate(headers, 1):
                     if header in column_widths:
                         column_letter = openpyxl.utils.get_column_letter(col_num)
                         ws.column_dimensions[column_letter].width = column_widths[header]
+                
+                # 添加材料等級說明
+                legend_start_row = summary_row + 3
+                ws.cell(row=legend_start_row, column=1).value = "材料等級說明:"
+                ws.cell(row=legend_start_row, column=1).font = Font(bold=True)
+                
+                legend_data = [
+                    ("SD280", "280 MPa", "一般結構用鋼筋"),
+                    ("SD420", "420 MPa", "高強度結構鋼筋"),
+                    ("SD490", "490 MPa", "特殊高強度鋼筋")
+                ]
+                
+                for i, (grade, strength, desc) in enumerate(legend_data):
+                    row = legend_start_row + 1 + i
+                    ws.cell(row=row, column=1).value = grade
+                    ws.cell(row=row, column=2).value = strength
+                    ws.cell(row=row, column=3).value = desc
+                    
+                    # 設定說明樣式
+                    for col in range(1, 4):
+                        cell = ws.cell(row=row, column=col)
+                        cell.font = Font(size=9)
+                        if grade == "SD280":
+                            cell.fill = PatternFill(start_color="E7F3FF", end_color="E7F3FF", fill_type="solid")
+                        elif grade == "SD420":
+                            cell.fill = PatternFill(start_color="FFF2E7", end_color="FFF2E7", fill_type="solid")
+                        elif grade == "SD490":
+                            cell.fill = PatternFill(start_color="F3E7FF", end_color="F3E7FF", fill_type="solid")
                 
                 self.log_message("🎨 Excel 格式設定完成")
                 
@@ -1063,13 +1402,18 @@ class ModernCADtoExcelConverter:
             self.log_message(f"   • 總長度: {total_length:.2f} cm")
             self.log_message(f"   • 總重量: {total_weight:.2f} kg")
             self.log_message(f"   • 處理時間: {self.format_time(elapsed_time)}")
+            self.log_message(f"   • 圖示類型: {'專業圖形化' if self.graphics_available else '基本ASCII'}")
             self.log_message(f"   • 輸出檔案: {os.path.basename(self.excel_path.get())}")
             self.log_message("=" * 60)
             
             # 恢復按鈕狀態
-            self.convert_button.config(state="normal", text="🚀 開始轉換", bg=self.colors['success'])
+            if self.graphics_available:
+                self.convert_button.config(state="normal", text="🚀 開始轉換 (含圖形)", bg=self.colors['success'])
+            else:
+                self.convert_button.config(state="normal", text="🚀 開始轉換", bg=self.colors['success'])
             
             # 顯示完成對話框
+            graphics_note = "包含專業圖形化鋼筋圖示" if self.graphics_available else "使用基本圖示模式"
             result_message = f"""🎉 轉換完成！
 
 📊 處理結果:
@@ -1078,18 +1422,30 @@ class ModernCADtoExcelConverter:
 • 總數量: {total_quantity} 支
 • 總重量: {total_weight:.2f} kg
 • 處理時間: {self.format_time(elapsed_time)}
+• 圖示模式: {graphics_note}
 
 💾 檔案已儲存至:
 {self.excel_path.get()}
 
-感謝您使用 CAD 鋼筋計料轉換工具 Pro！"""
+🎨 新功能特色:
+✅ 自動材料等級識別 (SD280/SD420/SD490)
+✅ 專業鋼筋彎曲形狀圖示
+✅ 增強版 Excel 格式化
+✅ 智能圖形降級機制
+
+感謝您使用 CAD 鋼筋計料轉換工具 Pro v2.1！"""
             
             messagebox.showinfo("✅ 轉換完成", result_message)
             
         except Exception as e:
             self.log_message(f"❌ 錯誤: {str(e)}")
             self.update_progress(percentage=0, detail="轉換失敗")
-            self.convert_button.config(state="normal", text="🚀 開始轉換", bg=self.colors['success'])
+            
+            if self.graphics_available:
+                self.convert_button.config(state="normal", text="🚀 開始轉換 (含圖形)", bg=self.colors['success'])
+            else:
+                self.convert_button.config(state="normal", text="🚀 開始轉換", bg=self.colors['success'])
+            
             messagebox.showerror("❌ 轉換錯誤", f"轉換過程中發生錯誤:\n\n{str(e)}\n\n請檢查檔案格式和內容後重試。")
 
 def main():
