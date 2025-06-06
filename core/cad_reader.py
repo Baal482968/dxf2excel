@@ -81,6 +81,9 @@ class CADReader:
         except Exception as e:
             print(f"提取鋼筋文字錯誤: {str(e)}")
         
+        print("[DEBUG] 被抓到的鋼筋文字（raw_text）：")
+        for t in rebar_texts:
+            print(t.get('raw_text', ''))
         return rebar_texts
     
     def extract_rebar_lines(self):
@@ -174,23 +177,21 @@ class CADReader:
             for rebar_text in rebar_texts:
                 # 尋找相關線段
                 associated_lines = self.find_associated_lines(rebar_text, rebar_lines)
-                
                 # 計算總長度
                 total_length = sum(line['length'] for line in associated_lines)
-                
-                # 建立鋼筋資料
+                rebar_number = rebar_text['rebar_number']
                 rebar_data.append({
-                    'rebar_number': rebar_text['rebar_number'],
-                    'spacing': rebar_text['spacing'],
-                    'diameter': rebar_text['diameter'],
-                    'unit_weight': rebar_text['unit_weight'],
-                    'grade': rebar_text['grade'],
-                    'length': total_length,
-                    'weight': self.rebar_processor.calculate_rebar_weight(
-                        rebar_text['rebar_number'],
+                    'rebar_number': rebar_number,
+                    'spacing': rebar_text.get('spacing'),
+                    'diameter': self.rebar_processor.get_rebar_diameter(rebar_number),
+                    'unit_weight': self.rebar_processor.get_rebar_unit_weight(rebar_number),
+                    'grade': self.rebar_processor.get_rebar_grade(rebar_number),
+                    'length': round(total_length),
+                    'weight': round(self.rebar_processor.calculate_rebar_weight(
+                        rebar_number,
                         total_length
-                    ),
-                    'position': rebar_text['position'],
+                    )),
+                    'position': rebar_text.get('position'),
                     'associated_lines': associated_lines,
                     'raw_text': rebar_text.get('raw_text', '')
                 })

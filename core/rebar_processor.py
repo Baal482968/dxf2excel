@@ -73,32 +73,36 @@ class RebarProcessor:
 
     @staticmethod
     def parse_rebar_text(text):
-        """解析鋼筋文字標記"""
-        # 移除空白字元
+        """
+        支援多種鋼筋標記格式的解析，允許 # 前有任意字元，支援全形乘號、逗號、cm、括號等符號。
+        """
+        import re
         text = text.strip()
-        
-        # 檢查是否為鋼筋標記
-        if not text.startswith('#'):
+        # 將全形乘號、逗號、空白等轉成半形
+        text = text.replace('×', 'x').replace('，', ',').replace(' ', '')
+        # 找到第一個 # 開頭
+        m = re.search(r'#\d+', text)
+        if not m:
             return None
-        
-        # 提取鋼筋編號和間距
-        match = re.match(r'#(\d+)@(\d+)(?:c/c|cm|mm)?', text)
+        start = m.start()
+        text = text[start:]  # 只取 # 開頭到結尾
+        # 正則：#號(@間距)?(,)?(分段長度)?(x數量)?(備註)?
+        pattern = r'#(?P<number>\d+)(?:@(?P<spacing>\d+))?(?:,)?(?P<segments>[-+xX,\dcm()]+)?x?(?P<count>\d+)?'
+        match = re.match(pattern, text)
         if not match:
             return None
-        
-        rebar_number = f"#{match.group(1)}"
-        spacing = int(match.group(2))
-        
-        # 如果沒有單位，預設為公分
-        if not re.search(r'@\d+(?:c/c|cm|mm)', text):
-            spacing *= 10  # 轉換為公釐
-        
+        number = f"#{match.group('number')}"
+        spacing = int(match.group('spacing')) if match.group('spacing') else None
+        segments = match.group('segments')
+        count = int(match.group('count')) if match.group('count') else 1
+        # 解析分段長度，只取數字
+        seg_list = [int(s) for s in re.findall(r'\d+', segments)] if segments else []
         return {
-            'rebar_number': rebar_number,
+            'rebar_number': number,
             'spacing': spacing,
-            'diameter': RebarProcessor.get_rebar_diameter(rebar_number),
-            'unit_weight': RebarProcessor.get_rebar_unit_weight(rebar_number),
-            'grade': RebarProcessor.get_rebar_grade(rebar_number)
+            'segments': seg_list,
+            'count': count,
+            'raw_text': text
         }
 
     @staticmethod

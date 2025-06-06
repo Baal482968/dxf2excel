@@ -228,8 +228,7 @@ class MainWindow:
         self.excel_writer.save_workbook(self.excel_file_path.get())
         self.status_var.set("轉換完成！")
         self.progress_var.set(100)
-        messagebox.showinfo("完成", "轉換完成！")
-        # 轉換完成才顯示「開啟檔案」按鈕
+        # messagebox.showinfo("完成", "轉換完成！")  # 不再跳出提示視窗
         self.open_file_btn.grid(row=0, column=2, padx=16, ipadx=8, ipady=4, sticky="ew")
 
     def convert_process(self):
@@ -260,7 +259,7 @@ class MainWindow:
             # 這裡用 after 回主執行緒寫 Excel（含圖形）
             self.root.after(0, lambda: self.write_excel_on_main_thread(rebar_data))
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("錯誤", f"轉換過程發生錯誤：\n{str(e)}"))
+            self.root.after(0, lambda err=e: messagebox.showerror("錯誤", f"轉換過程發生錯誤：\n{str(err)}"))
             self.root.after(0, lambda: self.status_var.set("轉換失敗"))
         finally:
             self.cad_reader.close_file() 

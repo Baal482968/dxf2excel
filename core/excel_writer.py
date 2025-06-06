@@ -1,5 +1,6 @@
 """
-Excel 輸出相關功能模組
+Excel 輸出相關功能模組 - 增強版
+支援圖片嵌入和文字描述的混合模式
 """
 
 import openpyxl
@@ -10,27 +11,88 @@ from datetime import datetime
 import tempfile
 import base64
 import os
-from utils.graphics import GraphicsManager
+import io
+from PIL import Image as PILImage
+
+try:
+    from utils.graphics import GraphicsManager
+except ImportError:
+    # 如果找不到原模組，嘗試使用增強版
+    try:
+        from graphics_manager import GraphicsManager
+    except ImportError:
+        GraphicsManager = None
+        print("⚠️ 警告: 找不到圖形管理器，將使用純文字模式")
 
 class ExcelWriter:
-    """Excel 檔案寫入器"""
+    """Excel 檔案寫入器 - 增強版"""
     
-    def __init__(self):
+    def __init__(self, image_mode="mixed"):
+        """
+        初始化 Excel 寫入器
+        
+        Args:
+            image_mode: 圖片處理模式
+                - "image": 僅嵌入圖片
+                - "text": 僅使用文字描述
+                - "mixed": 圖片+文字描述（推薦）
+                - "auto": 自動檢測並選擇最佳模式
+        """
         self.workbook = None
         self.worksheet = None
-        self.temp_image_files = []  # 新增暫存圖檔清單
+        self.temp_image_files = []
+        self.image_mode = image_mode
+        
+        # 初始化圖形管理器
+        self.graphics_manager = None
+        if GraphicsManager:
+            try:
+                self.graphics_manager = GraphicsManager()
+                self.graphics_available = True
+                
+                # 檢查圖形依賴
+                if hasattr(self.graphics_manager, 'check_dependencies'):
+                    deps_ok, missing = self.graphics_manager.check_dependencies()
+                    if not deps_ok:
+                        print(f"⚠️ 圖形套件缺失: {missing}")
+                        self.graphics_available = False
+                else:
+                    self.graphics_available = True
+                    
+            except Exception as e:
+                print(f"⚠️ 圖形管理器初始化失敗: {e}")
+                self.graphics_available = False
+        else:
+            self.graphics_available = False
+        
+        # 根據可用性調整模式
+        if self.image_mode == "auto":
+            if self.graphics_available:
+                self.image_mode = "mixed"
+            else:
+                self.image_mode = "text"
+                print("🔄 自動切換到文字模式")
         
         # 定義樣式
         self.styles = {
             'header_font': Font(name='Calibri', size=12, bold=True, color='FFFFFF'),
             'normal_font': Font(name='Calibri', size=11),
+            'small_font': Font(name='Calibri', size=9),
             'title_font': Font(name='Calibri', size=14, bold=True),
+            'description_font': Font(name='Consolas', size=8),  # 等寬字體用於圖示描述
             'header_fill': PatternFill(start_color='4A90E2', end_color='4A90E2', fill_type='solid'),
+            'light_fill': PatternFill(start_color='F8F9FA', end_color='F8F9FA', fill_type='solid'),
             'border': Border(
                 left=Side(style='thin'),
                 right=Side(style='thin'),
                 top=Side(style='thin'),
                 bottom=Side(style='thin')
+            ),
+            'thick_border': Border(
+                left=Side(style='medium'),
+                right=Side(style='medium'),
+                top=Side(style='medium'),
+                bottom=Side(style='medium')
             )
         }
     
@@ -41,22 +103,42 @@ class ExcelWriter:
         self.worksheet.title = "鋼筋計料表"
     
     def save_workbook(self, file_path):
-        """儲存工作簿，並在儲存後刪除暫存圖檔"""
+        """儲存工作簿，並在儲存後清理暫存檔案"""
         if self.workbook:
-            self.workbook.save(file_path)
-        # 儲存後刪除暫存圖檔
-        for f in getattr(self, 'temp_image_files', []):
             try:
-                os.remove(f)
-            except Exception:
-                pass
+                self.workbook.save(file_path)
+                print(f"✅ Excel 檔案已儲存: {file_path}")
+            except Exception as e:
+                print(f"❌ Excel 儲存失敗: {e}")
+                raise
+        
+        # 清理暫存圖檔
+        self._cleanup_temp_files()
+    
+    def _cleanup_temp_files(self):
+        """清理暫存檔案"""
+        for temp_file in self.temp_image_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except Exception as e:
+                print(f"⚠️ 無法刪除暫存檔 {temp_file}: {e}")
         self.temp_image_files = []
     
     def write_header(self):
-        """寫入表頭（第 2 列，含圖示欄與讀取CAD文字）"""
-        headers = [
-            "編號", "號數", "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
-        ]
+        """寫入表頭"""
+        if self.image_mode in ["image", "mixed"]:
+            headers = [
+                "編號", "號數", "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
+            ]
+            column_widths = [8, 10, 25, 12, 8, 12, 20, 30]  # 圖示欄較寬
+        else:
+            headers = [
+                "編號", "號數", "圖示描述", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
+            ]
+            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]  # 圖示描述欄更寬
+        
+        # 寫入表頭
         for col, header in enumerate(headers, 1):
             cell = self.worksheet.cell(row=2, column=col)
             cell.value = header
@@ -64,63 +146,351 @@ class ExcelWriter:
             cell.fill = self.styles['header_fill']
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = self.styles['border']
-        for col in range(1, len(headers) + 1):
-            self.worksheet.column_dimensions[get_column_letter(col)].width = 18 if col == 3 else 12
+        
+        # 設定欄寬
+        for col, width in enumerate(column_widths, 1):
+            self.worksheet.column_dimensions[get_column_letter(col)].width = width
     
-    def write_title(self, title):
-        """寫入標題"""
-        # 合併儲存格
+    def write_title(self, title, subtitle=None):
+        """寫入標題和副標題"""
+        # 主標題
         self.worksheet.merge_cells('A1:H1')
-        # 只對左上角寫入 value
         cell = self.worksheet.cell(row=1, column=1)
         cell.value = title
         cell.font = self.styles['title_font']
         cell.alignment = Alignment(horizontal='center', vertical='center')
         self.worksheet.row_dimensions[1].height = 30
+        
+        # 副標題（如果提供）
+        if subtitle:
+            self.worksheet.merge_cells('A2:H2')
+            cell = self.worksheet.cell(row=2, column=1)
+            cell.value = subtitle
+            cell.font = self.styles['normal_font']
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            self.worksheet.row_dimensions[2].height = 20
+            
+            # 調整表頭行號
+            return 3
+        
+        return 2
+    
+    def _create_image_from_base64(self, base64_data, target_width=120, target_height=60):
+        """
+        從 base64 數據創建圖片檔案
+        
+        Args:
+            base64_data: base64 編碼的圖片數據
+            target_width: 目標寬度
+            target_height: 目標高度
+        
+        Returns:
+            str: 暫存圖片檔案路徑
+        """
+        try:
+            # 解碼 base64 數據
+            image_data = base64.b64decode(base64_data)
+            
+            # 使用 PIL 處理圖片
+            image = PILImage.open(io.BytesIO(image_data))
+            
+            # 調整圖片大小
+            image = image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
+            
+            # 創建暫存檔案
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                image.save(tmp, format='PNG')
+                temp_path = tmp.name
+                self.temp_image_files.append(temp_path)
+                return temp_path
+                
+        except Exception as e:
+            print(f"⚠️ 圖片處理失敗: {e}")
+            return None
+    
+    def _get_rebar_segments(self, rebar):
+        """從鋼筋資料中提取分段長度"""
+        segments = []
+        
+        # 嘗試不同的分段長度欄位
+        segment_keys = ['segments', 'lengths', 'A', 'B', 'C', 'D', 'E']
+        
+        for key in segment_keys:
+            if key in rebar and rebar[key] is not None:
+                if key == 'segments' and isinstance(rebar[key], list):
+                    segments = rebar[key]
+                    break
+                elif key in ['A', 'B', 'C', 'D', 'E']:
+                    if key == 'A' and segments == []:
+                        segments = []
+                    if rebar[key] > 0:
+                        segments.append(rebar[key])
+        
+        # 如果沒有分段資料，使用總長度
+        if not segments and 'length' in rebar and rebar['length'] > 0:
+            segments = [rebar['length']]
+        
+        return segments
+    
+    def _generate_rebar_visual(self, rebar):
+        """
+        生成鋼筋視覺表示（圖片或文字描述）
+        
+        Args:
+            rebar: 鋼筋資料字典
+        
+        Returns:
+            tuple: (圖片檔案路徑或None, 文字描述)
+        """
+        rebar_number = rebar.get('rebar_number', '#4')
+        segments = self._get_rebar_segments(rebar)
+        
+        image_path = None
+        text_description = ""
+        
+        if not self.graphics_available:
+            # 圖形功能不可用，生成簡單文字描述
+            if len(segments) == 1:
+                text_description = f"直鋼筋 {rebar_number}\n長度: {int(segments[0])}cm"
+            elif len(segments) == 2:
+                text_description = f"L型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])}cm"
+            elif len(segments) == 3:
+                text_description = f"U型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
+            else:
+                total = sum(segments)
+                text_description = f"複合鋼筋 {rebar_number}\n總長: {int(total)}cm"
+        
+        else:
+            try:
+                # 使用圖形管理器生成圖示
+                if hasattr(self.graphics_manager, 'generate_rebar_diagram'):
+                    # 使用新版圖形管理器
+                    if self.image_mode in ["image", "mixed"]:
+                        # 生成圖片
+                        base64_data = self.graphics_manager.generate_rebar_diagram(
+                            segments, rebar_number, "professional"
+                        )
+                        if base64_data and base64_data != "無法生成專業圖示":
+                            image_path = self._create_image_from_base64(base64_data)
+                    
+                    if self.image_mode in ["text", "mixed"]:
+                        # 生成詳細文字描述
+                        text_description = self.graphics_manager.create_detailed_description(
+                            segments, rebar_number
+                        )
+                else:
+                    # 使用舊版圖形管理器
+                    if len(segments) == 1:
+                        base64_data = self.graphics_manager.draw_straight_rebar(
+                            segments[0], rebar_number
+                        )
+                    elif len(segments) == 2:
+                        base64_data = self.graphics_manager.draw_l_shaped_rebar(
+                            segments[0], segments[1], rebar_number
+                        )
+                    elif len(segments) == 3:
+                        base64_data = self.graphics_manager.draw_u_shaped_rebar(
+                            segments[0], segments[1], segments[2], rebar_number
+                        )
+                    else:
+                        base64_data = self.graphics_manager.draw_complex_rebar(
+                            segments, rebar_number
+                        )
+                    
+                    if base64_data and self.image_mode in ["image", "mixed"]:
+                        image_path = self._create_image_from_base64(base64_data)
+                    
+                    # 生成簡單文字描述
+                    if self.image_mode in ["text", "mixed"]:
+                        total_length = sum(segments)
+                        text_description = f"{rebar_number} - {int(total_length)}cm"
+                        if len(segments) > 1:
+                            segment_text = " + ".join([str(int(s)) for s in segments])
+                            text_description += f"\n({segment_text})"
+                
+            except Exception as e:
+                print(f"⚠️ 鋼筋圖示生成失敗: {e}")
+                # 降級到文字模式
+                total_length = sum(segments) if segments else rebar.get('length', 0)
+                text_description = f"{rebar_number} - {int(total_length)}cm\n(圖示生成失敗)"
+        
+        return image_path, text_description
     
     def write_rebar_data(self, rebar_data, start_row=3):
-        """寫入鋼筋資料（含圖示與CAD原文）"""
+        """
+        寫入鋼筋資料（支援圖片和文字混合模式）
+        
+        Args:
+            rebar_data: 鋼筋資料列表
+            start_row: 起始行號
+        
+        Returns:
+            int: 下一個可用行號
+        """
         current_row = start_row
+        
         for idx, rebar in enumerate(rebar_data, 1):
+            # 基本資料
             self.worksheet.cell(row=current_row, column=1).value = idx
             self.worksheet.cell(row=current_row, column=2).value = rebar.get('rebar_number', '')
-            img_b64 = GraphicsManager.draw_straight_rebar(rebar.get('length', 0), rebar.get('rebar_number', ''))
-            img_data = base64.b64decode(img_b64)
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-                tmp.write(img_data)
-                tmp_path = tmp.name
-                self.temp_image_files.append(tmp_path)
-            img = ExcelImage(tmp_path)
-            img.width = 120
-            img.height = 32
-            img.anchor = f'C{current_row}'
-            self.worksheet.add_image(img)
+            
+            # 生成鋼筋視覺表示
+            image_path, text_description = self._generate_rebar_visual(rebar)
+            
+            # 圖示欄處理
+            diagram_cell = self.worksheet.cell(row=current_row, column=3)
+            
+            if self.image_mode == "image" and image_path:
+                # 僅圖片模式
+                try:
+                    img = ExcelImage(image_path)
+                    img.width = 120
+                    img.height = 60
+                    img.anchor = f'C{current_row}'
+                    self.worksheet.add_image(img)
+                    diagram_cell.value = ""  # 清空儲存格文字
+                except Exception as e:
+                    print(f"⚠️ 圖片嵌入失敗: {e}")
+                    diagram_cell.value = text_description
+                    
+            elif self.image_mode == "mixed" and image_path:
+                # 混合模式：圖片 + 文字
+                try:
+                    img = ExcelImage(image_path)
+                    img.width = 100
+                    img.height = 50
+                    img.anchor = f'C{current_row}'
+                    self.worksheet.add_image(img)
+                    # 在圖片旁邊添加簡化文字描述
+                    simple_desc = text_description.split('\n')[0] if text_description else ""
+                    diagram_cell.value = simple_desc
+                except Exception as e:
+                    print(f"⚠️ 圖片嵌入失敗: {e}")
+                    diagram_cell.value = text_description
+                    
+            else:
+                # 純文字模式
+                diagram_cell.value = text_description
+                diagram_cell.font = self.styles['description_font']
+                diagram_cell.alignment = Alignment(
+                    horizontal='left', 
+                    vertical='top', 
+                    wrap_text=True
+                )
+            
+            # 其他資料欄位
             self.worksheet.cell(row=current_row, column=4).value = rebar.get('length', 0)
             self.worksheet.cell(row=current_row, column=5).value = rebar.get('count', 1)
-            self.worksheet.cell(row=current_row, column=6).value = round(rebar.get('weight', 0))
+            self.worksheet.cell(row=current_row, column=6).value = round(rebar.get('weight', 0), 2)
             self.worksheet.cell(row=current_row, column=7).value = rebar.get('note', '')
             self.worksheet.cell(row=current_row, column=8).value = rebar.get('raw_text', '')
+            
+            # 設定儲存格樣式
             for col in range(1, 9):
                 cell = self.worksheet.cell(row=current_row, column=col)
-                cell.font = self.styles['normal_font']
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+                if col != 3:  # 圖示欄已單獨處理
+                    cell.font = self.styles['normal_font']
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = self.styles['border']
+                
+                # 交替行顏色
+                if idx % 2 == 0:
+                    cell.fill = self.styles['light_fill']
+            
+            # 調整行高
+            if self.image_mode in ["image", "mixed"]:
+                self.worksheet.row_dimensions[current_row].height = 70
+            else:
+                self.worksheet.row_dimensions[current_row].height = 60
+            
             current_row += 1
+        
         return current_row
+    
+    def write_summary(self, rebar_data, start_row):
+        """寫入統計摘要"""
+        if not rebar_data:
+            return start_row
+        
+        # 計算統計資料
+        total_count = sum(rebar.get('count', 1) for rebar in rebar_data)
+        total_weight = sum(rebar.get('weight', 0) for rebar in rebar_data)
+        total_length = sum(rebar.get('length', 0) * rebar.get('count', 1) for rebar in rebar_data)
+        
+        # 鋼筋類型統計
+        rebar_types = {}
+        for rebar in rebar_data:
+            rebar_num = rebar.get('rebar_number', '')
+            if rebar_num not in rebar_types:
+                rebar_types[rebar_num] = {'count': 0, 'weight': 0}
+            rebar_types[rebar_num]['count'] += rebar.get('count', 1)
+            rebar_types[rebar_num]['weight'] += rebar.get('weight', 0)
+        
+        # 寫入摘要標題
+        summary_row = start_row + 1
+        self.worksheet.merge_cells(f'A{summary_row}:H{summary_row}')
+        cell = self.worksheet.cell(row=summary_row, column=1)
+        cell.value = "統計摘要"
+        cell.font = Font(name='Calibri', size=12, bold=True)
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.fill = PatternFill(start_color='E8F4FD', end_color='E8F4FD', fill_type='solid')
+        cell.border = self.styles['thick_border']
+        
+        # 總計資料
+        summary_row += 1
+        summary_data = [
+            ("總數量", f"{total_count} 支"),
+            ("總重量", f"{total_weight:.2f} kg"),
+            ("總長度", f"{total_length:.0f} cm"),
+            ("鋼筋類型", f"{len(rebar_types)} 種")
+        ]
+        
+        for i, (label, value) in enumerate(summary_data):
+            label_cell = self.worksheet.cell(row=summary_row, column=i*2+1)
+            value_cell = self.worksheet.cell(row=summary_row, column=i*2+2)
+            
+            label_cell.value = label
+            value_cell.value = value
+            
+            label_cell.font = Font(name='Calibri', size=10, bold=True)
+            value_cell.font = Font(name='Calibri', size=10)
+            
+            label_cell.alignment = Alignment(horizontal='right', vertical='center')
+            value_cell.alignment = Alignment(horizontal='left', vertical='center')
+            
+            label_cell.border = self.styles['border']
+            value_cell.border = self.styles['border']
+        
+        return summary_row + 1
     
     def write_footer(self, row):
         """寫入頁尾"""
-        # 合併儲存格，只對左上角寫入 value
+        # 生成時間
         self.worksheet.merge_cells(f'A{row}:H{row}')
         cell = self.worksheet.cell(row=row, column=1)
-        cell.value = f"生成時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        cell.font = self.styles['normal_font']
+        
+        # 添加模式資訊
+        mode_info = {
+            "image": "圖片模式",
+            "text": "文字模式", 
+            "mixed": "圖文混合模式"
+        }
+        
+        cell.value = (f"生成時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+                     f"圖示模式：{mode_info.get(self.image_mode, self.image_mode)} | "
+                     f"圖形功能：{'啟用' if self.graphics_available else '未啟用'}")
+        cell.font = self.styles['small_font']
         cell.alignment = Alignment(horizontal='right', vertical='center')
+        cell.border = self.styles['border']
     
     def format_worksheet(self):
         """格式化工作表"""
+        if not self.worksheet:
+            return
+        
         # 設定列印區域
-        self.worksheet.print_area = self.worksheet.dimensions
+        if self.worksheet.max_row > 0 and self.worksheet.max_column > 0:
+            self.worksheet.print_area = f'A1:{get_column_letter(self.worksheet.max_column)}{self.worksheet.max_row}'
         
         # 設定頁面方向為橫向
         self.worksheet.page_setup.orientation = self.worksheet.ORIENTATION_LANDSCAPE
@@ -133,4 +503,144 @@ class ExcelWriter:
         
         # 設定頁首頁尾
         self.worksheet.oddHeader.center.text = "鋼筋計料表"
-        self.worksheet.oddFooter.right.text = "第 &P 頁，共 &N 頁" 
+        self.worksheet.oddFooter.right.text = "第 &P 頁，共 &N 頁"
+        
+        # 凍結窗格（凍結表頭）
+        self.worksheet.freeze_panes = 'A3'
+        
+        # 設定自動篩選
+        if self.worksheet.max_row > 2:
+            self.worksheet.auto_filter.ref = f'A2:{get_column_letter(self.worksheet.max_column)}{self.worksheet.max_row}'
+
+
+# 便利函數
+def create_excel_writer(mode="auto"):
+    """
+    創建 Excel 寫入器的便利函數
+    
+    Args:
+        mode: 圖片處理模式
+            - "auto": 自動檢測
+            - "mixed": 圖文混合（推薦）
+            - "image": 僅圖片
+            - "text": 僅文字
+    
+    Returns:
+        ExcelWriter: Excel 寫入器實例
+    """
+    return ExcelWriter(image_mode=mode)
+
+
+def quick_generate_excel(rebar_data, output_path, title="鋼筋計料表", mode="auto"):
+    """
+    快速生成 Excel 檔案的便利函數
+    
+    Args:
+        rebar_data: 鋼筋資料列表
+        output_path: 輸出檔案路徑
+        title: 表格標題
+        mode: 圖片處理模式
+    
+    Returns:
+        bool: 生成成功返回 True
+    """
+    try:
+        writer = ExcelWriter(image_mode=mode)
+        writer.create_workbook()
+        
+        # 寫入標題
+        header_row = writer.write_title(title)
+        
+        # 寫入表頭
+        writer.write_header()
+        
+        # 寫入資料
+        next_row = writer.write_rebar_data(rebar_data, header_row + 1)
+        
+        # 寫入統計摘要
+        summary_row = writer.write_summary(rebar_data, next_row)
+        
+        # 寫入頁尾
+        writer.write_footer(summary_row + 1)
+        
+        # 格式化
+        writer.format_worksheet()
+        
+        # 儲存
+        writer.save_workbook(output_path)
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Excel 生成失敗: {e}")
+        return False
+
+
+# 測試函數
+def test_excel_writer():
+    """測試 Excel 寫入器功能"""
+    
+    # 模擬鋼筋資料
+    test_data = [
+        {
+            'rebar_number': '#4',
+            'length': 300,
+            'count': 10,
+            'weight': 12.5,
+            'note': '主筋',
+            'raw_text': '#4-300x10',
+            'segments': [300]
+        },
+        {
+            'rebar_number': '#5', 
+            'length': 350,
+            'count': 8,
+            'weight': 18.7,
+            'note': 'L型箍筋',
+            'raw_text': '#5-150+200x8',
+            'A': 150,
+            'B': 200
+        },
+        {
+            'rebar_number': '#6',
+            'length': 470,
+            'count': 6,
+            'weight': 25.3,
+            'note': 'U型箍筋',
+            'raw_text': '#6-120+230+120x6',
+            'segments': [120, 230, 120]
+        }
+    ]
+    
+    print("🧪 測試 Excel 寫入器")
+    print("=" * 40)
+    
+    # 測試不同模式
+    modes = ["mixed", "text", "image"]
+    
+    for mode in modes:
+        try:
+            output_file = f"test_rebar_{mode}.xlsx"
+            print(f"\n📝 測試 {mode} 模式...")
+            
+            success = quick_generate_excel(
+                test_data, 
+                output_file, 
+                f"鋼筋計料表 - {mode.upper()}模式測試",
+                mode
+            )
+            
+            if success:
+                print(f"✅ {mode} 模式測試成功: {output_file}")
+            else:
+                print(f"❌ {mode} 模式測試失敗")
+                
+        except Exception as e:
+            print(f"❌ {mode} 模式測試錯誤: {e}")
+    
+    print("\n🎉 測試完成")
+
+
+if __name__ == "__main__":
+    """當檔案被直接執行時進行測試"""
+    test_excel_writer()
