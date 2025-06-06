@@ -97,7 +97,7 @@ class ExcelWriter:
             self.worksheet.add_image(img)
             self.worksheet.cell(row=current_row, column=4).value = rebar.get('length', 0)
             self.worksheet.cell(row=current_row, column=5).value = rebar.get('count', 1)
-            self.worksheet.cell(row=current_row, column=6).value = rebar.get('weight', 0)
+            self.worksheet.cell(row=current_row, column=6).value = round(rebar.get('weight', 0))
             self.worksheet.cell(row=current_row, column=7).value = rebar.get('note', '')
             self.worksheet.cell(row=current_row, column=8).value = rebar.get('raw_text', '')
             for col in range(1, 9):
