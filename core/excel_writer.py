@@ -13,6 +13,7 @@ import base64
 import os
 import io
 from PIL import Image as PILImage
+import re
 
 try:
     from utils.graphics import GraphicsManager
@@ -131,7 +132,7 @@ class ExcelWriter:
             headers = [
                 "編號", "號數", "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
             ]
-            column_widths = [8, 10, 25, 12, 8, 12, 20, 30]  # 圖示欄較寬
+            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]  # 圖示欄較寬
         else:
             headers = [
                 "編號", "號數", "圖示描述", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
@@ -178,34 +179,22 @@ class ExcelWriter:
     def _create_image_from_base64(self, base64_data, target_width=120, target_height=60):
         """
         從 base64 數據創建圖片檔案
-        
-        Args:
-            base64_data: base64 編碼的圖片數據
-            target_width: 目標寬度
-            target_height: 目標高度
-        
-        Returns:
-            str: 暫存圖片檔案路徑
         """
         try:
-            # 解碼 base64 數據
+            # 嘗試解碼 base64 數據
             image_data = base64.b64decode(base64_data)
-            
             # 使用 PIL 處理圖片
             image = PILImage.open(io.BytesIO(image_data))
-            
             # 調整圖片大小
             image = image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
-            
             # 創建暫存檔案
             with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
                 image.save(tmp, format='PNG')
                 temp_path = tmp.name
                 self.temp_image_files.append(temp_path)
                 return temp_path
-                
         except Exception as e:
-            print(f"⚠️ 圖片處理失敗: {e}")
+            print(f"⚠️ 圖片處理失敗: {e}，內容預覽: {str(base64_data)[:40]}")
             return None
     
     def _get_rebar_segments(self, rebar):
@@ -235,20 +224,17 @@ class ExcelWriter:
     def _generate_rebar_visual(self, rebar):
         """
         生成鋼筋視覺表示（圖片或文字描述）
-        
-        Args:
-            rebar: 鋼筋資料字典
-        
-        Returns:
-            tuple: (圖片檔案路徑或None, 文字描述)
         """
         rebar_number = rebar.get('rebar_number', '#4')
         segments = self._get_rebar_segments(rebar)
+        angles = rebar.get('angles', None)
+        print(f"[DEBUG] _generate_rebar_visual 開始，參數：rebar_number={rebar_number}, segments={segments}, angles={angles}")
         
         image_path = None
         text_description = ""
-        
+
         if not self.graphics_available:
+            print("[DEBUG] 圖形功能不可用，使用文字描述")
             # 圖形功能不可用，生成簡單文字描述
             if len(segments) == 1:
                 text_description = f"直鋼筋 {rebar_number}\n長度: {int(segments[0])}cm"
@@ -257,64 +243,40 @@ class ExcelWriter:
             elif len(segments) == 3:
                 text_description = f"U型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
             else:
-                total = sum(segments)
-                text_description = f"複合鋼筋 {rebar_number}\n總長: {int(total)}cm"
-        
-        else:
-            try:
-                # 使用圖形管理器生成圖示
-                if hasattr(self.graphics_manager, 'generate_rebar_diagram'):
-                    # 使用新版圖形管理器
-                    if self.image_mode in ["image", "mixed"]:
-                        # 生成圖片
-                        base64_data = self.graphics_manager.generate_rebar_diagram(
-                            segments, rebar_number, "professional"
-                        )
-                        if base64_data and base64_data != "無法生成專業圖示":
-                            image_path = self._create_image_from_base64(base64_data)
-                    
-                    if self.image_mode in ["text", "mixed"]:
-                        # 生成詳細文字描述
-                        text_description = self.graphics_manager.create_detailed_description(
-                            segments, rebar_number
-                        )
-                else:
-                    # 使用舊版圖形管理器
-                    if len(segments) == 1:
-                        base64_data = self.graphics_manager.draw_straight_rebar(
-                            segments[0], rebar_number
-                        )
-                    elif len(segments) == 2:
-                        base64_data = self.graphics_manager.draw_l_shaped_rebar(
-                            segments[0], segments[1], rebar_number
-                        )
-                    elif len(segments) == 3:
-                        base64_data = self.graphics_manager.draw_u_shaped_rebar(
-                            segments[0], segments[1], segments[2], rebar_number
-                        )
-                    else:
-                        base64_data = self.graphics_manager.draw_complex_rebar(
-                            segments, rebar_number
-                        )
-                    
-                    if base64_data and self.image_mode in ["image", "mixed"]:
-                        image_path = self._create_image_from_base64(base64_data)
-                    
-                    # 生成簡單文字描述
-                    if self.image_mode in ["text", "mixed"]:
-                        total_length = sum(segments)
-                        text_description = f"{rebar_number} - {int(total_length)}cm"
-                        if len(segments) > 1:
-                            segment_text = " + ".join([str(int(s)) for s in segments])
-                            text_description += f"\n({segment_text})"
-                
-            except Exception as e:
-                print(f"⚠️ 鋼筋圖示生成失敗: {e}")
-                # 降級到文字模式
-                total_length = sum(segments) if segments else rebar.get('length', 0)
-                text_description = f"{rebar_number} - {int(total_length)}cm\n(圖示生成失敗)"
-        
-        return image_path, text_description
+                text_description = f"複雜鋼筋 {rebar_number}\n{' + '.join(str(int(s)) for s in segments)}cm"
+            print(f"[DEBUG] 生成文字描述: {text_description}")
+            return text_description
+
+        try:
+            print("[DEBUG] 嘗試生成專業圖示")
+            base64_data = self.graphics_manager.generate_rebar_diagram(
+                segments, rebar_number, "professional", angles
+            )
+            print(f"[DEBUG] generate_rebar_diagram 回傳型態: {type(base64_data)}, 預覽: {str(base64_data)[:40] if base64_data else 'None'}")
+            
+            if base64_data:
+                print("[DEBUG] 嘗試從 base64 創建圖片")
+                image_path = self._create_image_from_base64(base64_data)
+                print(f"[DEBUG] 圖片創建結果: {image_path}")
+                if image_path:
+                    return image_path
+
+            print("[DEBUG] 圖片生成失敗，使用文字描述")
+            # 如果圖片生成失敗，使用文字描述
+            if len(segments) == 1:
+                text_description = f"直鋼筋 {rebar_number}\n長度: {int(segments[0])}cm"
+            elif len(segments) == 2:
+                text_description = f"L型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])}cm"
+            elif len(segments) == 3:
+                text_description = f"U型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
+            else:
+                text_description = f"複雜鋼筋 {rebar_number}\n{' + '.join(str(int(s)) for s in segments)}cm"
+            print(f"[DEBUG] 生成文字描述: {text_description}")
+            return text_description
+
+        except Exception as e:
+            print(f"[ERROR] _generate_rebar_visual 發生錯誤: {str(e)}")
+            return f"無法生成專業圖示: {str(e)}"
     
     def write_rebar_data(self, rebar_data, start_row=3):
         """
@@ -335,17 +297,17 @@ class ExcelWriter:
             self.worksheet.cell(row=current_row, column=2).value = rebar.get('rebar_number', '')
             
             # 生成鋼筋視覺表示
-            image_path, text_description = self._generate_rebar_visual(rebar)
+            text_description = self._generate_rebar_visual(rebar)
             
             # 圖示欄處理
             diagram_cell = self.worksheet.cell(row=current_row, column=3)
             
-            if self.image_mode == "image" and image_path:
+            if self.image_mode == "image" and text_description:
                 # 僅圖片模式
                 try:
-                    img = ExcelImage(image_path)
-                    img.width = 120
-                    img.height = 60
+                    img = ExcelImage(text_description)
+                    img.width = 360
+                    img.height = 108
                     img.anchor = f'C{current_row}'
                     self.worksheet.add_image(img)
                     diagram_cell.value = ""  # 清空儲存格文字
@@ -353,10 +315,10 @@ class ExcelWriter:
                     print(f"⚠️ 圖片嵌入失敗: {e}")
                     diagram_cell.value = text_description
                     
-            elif self.image_mode == "mixed" and image_path:
+            elif self.image_mode == "mixed" and text_description:
                 # 混合模式：圖片 + 文字
                 try:
-                    img = ExcelImage(image_path)
+                    img = ExcelImage(text_description)
                     img.width = 100
                     img.height = 50
                     img.anchor = f'C{current_row}'
@@ -399,7 +361,7 @@ class ExcelWriter:
             
             # 調整行高
             if self.image_mode in ["image", "mixed"]:
-                self.worksheet.row_dimensions[current_row].height = 70
+                self.worksheet.row_dimensions[current_row].height = 120
             else:
                 self.worksheet.row_dimensions[current_row].height = 60
             
@@ -612,7 +574,7 @@ def test_excel_writer():
         }
     ]
     
-    print("🧪 測試 Excel 寫入器")
+    print("🔄 測試 Excel 寫入器")
     print("=" * 40)
     
     # 測試不同模式

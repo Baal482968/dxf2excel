@@ -74,10 +74,19 @@ class RebarProcessor:
     @staticmethod
     def parse_rebar_text(text):
         """
-        支援多種鋼筋標記格式的解析，允許 # 前有任意字元，支援全形乘號、逗號、cm、括號等符號。
+        支援多種鋼筋標記格式的解析，允許 # 前有任意字元，支援全形乘號、逗號、cm、括號等符號，並自動解析角度。
         """
         import re
         text = text.strip()
+        # 解析角度（如「折135度」「135°」）
+        angles = []
+        angle_match = re.search(r'(?:折)?(\d{2,3})[°度]', text)
+        if angle_match:
+            try:
+                angle = int(angle_match.group(1))
+                angles.append(angle)
+            except:
+                pass
         # 將全形乘號、逗號、空白等轉成半形
         text = text.replace('×', 'x').replace('，', ',').replace(' ', '')
         # 找到第一個 # 開頭
@@ -101,6 +110,7 @@ class RebarProcessor:
             'rebar_number': number,
             'spacing': spacing,
             'segments': seg_list,
+            'angles': angles,
             'count': count,
             'raw_text': text
         }

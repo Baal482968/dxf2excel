@@ -151,16 +151,16 @@ class GraphicsManager:
             ax.text(dim_x + 12, mid_y, text, ha='left', va='center',
                    fontsize=font_size, fontweight='bold', color=settings['colors']['text'], rotation=90)
     
-    def draw_straight_rebar(self, length, rebar_number, professional=True):
+    def draw_straight_rebar(self, length, rebar_number, professional=True, width=600, height=180):
         """繪製直鋼筋圖示"""
         if professional:
-            return self._draw_professional_straight_rebar(length, rebar_number)
+            return self._draw_professional_straight_rebar(length, rebar_number, width, height)
         else:
-            return self._draw_basic_straight_rebar(length, rebar_number)
+            return self._draw_basic_straight_rebar(length, rebar_number, width, height)
     
-    def _draw_professional_straight_rebar(self, length, rebar_number):
+    def _draw_professional_straight_rebar(self, length, rebar_number, width=600, height=180):
         """繪製專業直鋼筋圖示"""
-        fig, ax = plt.subplots(figsize=(10, 4))
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         ax.set_aspect('equal')
         
         settings = self.professional_settings
@@ -205,16 +205,12 @@ class GraphicsManager:
         ax.set_ylim(start_y - 40, start_y + settings['dimension_offset'] + 40)
         ax.axis('off')
         
-        # 添加標題
-        fig.suptitle(f'直鋼筋 {rebar_number} - 長度 {int(length)}cm', 
-                    fontsize=settings['font_size'] + 2, fontweight='bold')
-        
         plt.tight_layout()
         return self._figure_to_base64(fig)
     
-    def _draw_basic_straight_rebar(self, length, rebar_number):
+    def _draw_basic_straight_rebar(self, length, rebar_number, width=600, height=180):
         """繪製基本直鋼筋圖示（保留原有功能）"""
-        fig, ax = plt.subplots(figsize=(6, 1))
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         ax.plot([0, length], [0, 0], 
                 color=self.basic_settings['colors']['rebar'], 
                 linewidth=self.basic_settings['line_width'])
@@ -227,16 +223,16 @@ class GraphicsManager:
         
         return self._figure_to_base64(fig)
 
-    def draw_l_shaped_rebar(self, length1, length2, rebar_number, professional=True):
+    def draw_l_shaped_rebar(self, length1, length2, rebar_number, professional=True, width=600, height=180):
         """繪製 L 型鋼筋圖示"""
         if professional:
-            return self._draw_professional_l_shaped_rebar(length1, length2, rebar_number)
+            return self._draw_professional_l_shaped_rebar(length1, length2, rebar_number, width, height)
         else:
-            return self._draw_basic_l_shaped_rebar(length1, length2, rebar_number)
+            return self._draw_basic_l_shaped_rebar(length1, length2, rebar_number, width, height)
     
-    def _draw_professional_l_shaped_rebar(self, length1, length2, rebar_number):
+    def _draw_professional_l_shaped_rebar(self, length1, length2, rebar_number, width=600, height=180):
         """繪製專業L型鋼筋圖示"""
-        fig, ax = plt.subplots(figsize=(10, 8))
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         ax.set_aspect('equal')
         
         settings = self.professional_settings
@@ -316,16 +312,12 @@ class GraphicsManager:
         ax.set_ylim(start_y - settings['dimension_offset'] - 30, v_end_y + 30)
         ax.axis('off')
         
-        # 添加標題
-        fig.suptitle(f'L型鋼筋 {rebar_number} - {int(length1)}cm + {int(length2)}cm', 
-                    fontsize=settings['font_size'] + 2, fontweight='bold')
-        
         plt.tight_layout()
         return self._figure_to_base64(fig)
     
-    def _draw_basic_l_shaped_rebar(self, length1, length2, rebar_number):
+    def _draw_basic_l_shaped_rebar(self, length1, length2, rebar_number, width=600, height=180):
         """繪製基本L型鋼筋圖示（保留原有功能）"""
-        fig, ax = plt.subplots(figsize=(6, 3))
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         
         # 繪製 L 型鋼筋
         ax.plot([0, length1], [0, 0], 
@@ -344,16 +336,16 @@ class GraphicsManager:
         
         return self._figure_to_base64(fig)
 
-    def draw_u_shaped_rebar(self, length1, length2, length3, rebar_number, professional=True):
+    def draw_u_shaped_rebar(self, length1, length2, length3, rebar_number, professional=True, width=600, height=180):
         """繪製 U 型鋼筋圖示"""
         if professional:
-            return self._draw_professional_u_shaped_rebar(length1, length2, length3, rebar_number)
+            return self._draw_professional_u_shaped_rebar(length1, length2, length3, rebar_number, width, height)
         else:
-            return self._draw_basic_u_shaped_rebar(length1, length2, length3, rebar_number)
+            return self._draw_basic_u_shaped_rebar(length1, length2, length3, rebar_number, width, height)
     
-    def _draw_professional_u_shaped_rebar(self, length1, length2, length3, rebar_number):
+    def _draw_professional_u_shaped_rebar(self, length1, length2, length3, rebar_number, width=600, height=180):
         """繪製專業U型鋼筋圖示"""
-        fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         ax.set_aspect('equal')
         
         settings = self.professional_settings
@@ -455,16 +447,12 @@ class GraphicsManager:
         ax.set_ylim(v1_end_y - settings['dimension_offset'] - 30, start_y + 30)
         ax.axis('off')
         
-        # 添加標題
-        fig.suptitle(f'U型鋼筋 {rebar_number} - {int(length1)} + {int(length2)} + {int(length3)}cm', 
-                    fontsize=settings['font_size'] + 2, fontweight='bold')
-        
         plt.tight_layout()
         return self._figure_to_base64(fig)
     
-    def _draw_basic_u_shaped_rebar(self, length1, length2, length3, rebar_number):
+    def _draw_basic_u_shaped_rebar(self, length1, length2, length3, rebar_number, width=600, height=180):
         """繪製基本U型鋼筋圖示（保留原有功能）"""
-        fig, ax = plt.subplots(figsize=(6, 3))
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         
         # 繪製 U 型鋼筋
         ax.plot([0, length1], [0, 0], 
@@ -489,16 +477,16 @@ class GraphicsManager:
         
         return self._figure_to_base64(fig)
 
-    def draw_complex_rebar(self, segments, rebar_number, professional=True):
-        """繪製複雜多段鋼筋圖示"""
+    def draw_complex_rebar(self, segments, rebar_number, professional=True, angles=None, width=600, height=180):
+        """繪製複雜多段鋼筋圖示，支援自訂彎曲角度"""
         if professional:
-            return self._draw_professional_complex_rebar(segments, rebar_number)
+            return self._draw_professional_complex_rebar(segments, rebar_number, angles, width, height)
         else:
-            return self._draw_basic_complex_rebar(segments, rebar_number)
+            return self._draw_basic_complex_rebar(segments, rebar_number, width, height)
     
-    def _draw_professional_complex_rebar(self, segments, rebar_number):
-        """繪製專業複雜鋼筋圖示"""
-        fig, ax = plt.subplots(figsize=(14, 10))
+    def _draw_professional_complex_rebar(self, segments, rebar_number, angles=None, width=600, height=180):
+        """繪製專業複雜鋼筋圖示，支援自訂彎曲角度"""
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         ax.set_aspect('equal')
         
         settings = self.professional_settings
@@ -516,26 +504,47 @@ class GraphicsManager:
         points = [(current_x, current_y)]
         segment_midpoints = []
         
+        # 預設角度序列
+        if angles is None or len(angles) < len(segments)-1:
+            # 不足的補90度
+            angles = (angles or []) + [90] * (len(segments)-1 - (len(angles) or 0))
+        
         # 繪製各段
         for i, length in enumerate(segments):
             length_scaled = length * scale
             dx, dy = directions[current_direction % 4]
             
             if i > 0:  # 非第一段需要彎曲
-                # 計算彎曲圓心
+                # 取得本段彎曲角度
+                angle = angles[i-1] if i-1 < len(angles) else 90
+                # 依角度決定方向變化
+                # 右(0)→下(1)為90度，右→左為180度，右→上為270度，右→右為0度
+                # 這裡以順時針為正，僅支援90/135/180/270等常見角度
+                # 方向變化表
+                angle_to_dir = {
+                    90: 1,  # 右→下
+                    135: 1, # 右→下（135度視覺上仍為下，僅弧度不同）
+                    180: 2, # 右→左
+                    270: 3, # 右→上
+                }
+                # 方向變化
+                turn = angle_to_dir.get(angle, 1)
                 prev_dx, prev_dy = directions[(current_direction - 1) % 4]
                 center_x = current_x + bend_radius * prev_dx + bend_radius * dx
                 center_y = current_y + bend_radius * prev_dy + bend_radius * dy
-                
-                # 計算弧的角度
+                # 弧度計算
                 start_angle = np.degrees(np.arctan2(-prev_dy, -prev_dx))
-                end_angle = np.degrees(np.arctan2(-dy, -dx))
-                
-                # 調整角度範圍
-                angle_diff = (end_angle - start_angle) % 360
-                if angle_diff > 180:
-                    start_angle, end_angle = end_angle, start_angle + 360
-                
+                # 目標方向
+                if angle == 90:
+                    end_angle = start_angle + 90
+                elif angle == 135:
+                    end_angle = start_angle + 135
+                elif angle == 180:
+                    end_angle = start_angle + 180
+                elif angle == 270:
+                    end_angle = start_angle + 270
+                else:
+                    end_angle = start_angle + 90
                 # 繪製弧線
                 arc = Arc((center_x, center_y), 
                          2 * bend_radius, 2 * bend_radius,
@@ -543,7 +552,6 @@ class GraphicsManager:
                          linewidth=settings['line_width'], 
                          color=settings['colors']['rebar'])
                 ax.add_patch(arc)
-                
                 # 彎曲半徑標註（僅標註前兩個彎曲）
                 if i <= 2:
                     radius_text = f'R{int(bend_radius*10/scale)}'
@@ -554,15 +562,14 @@ class GraphicsManager:
                             fontsize=settings['font_size'] - 2, 
                             color=settings['colors']['radius'],
                             bbox=dict(boxstyle="round,pad=0.1", facecolor='lightyellow', alpha=0.7))
-                
                 # 更新當前位置
                 current_x = center_x - bend_radius * dx
                 current_y = center_y - bend_radius * dy
-            
+                # 方向更新
+                current_direction = (current_direction + turn) % 4
             # 計算段終點
             segment_end_x = current_x + length_scaled * dx
             segment_end_y = current_y + length_scaled * dy
-            
             # 如果不是最後一段，要為下一個彎曲預留空間
             if i < len(segments) - 1:
                 draw_end_x = segment_end_x - bend_radius * dx
@@ -570,23 +577,18 @@ class GraphicsManager:
             else:
                 draw_end_x = segment_end_x
                 draw_end_y = segment_end_y
-            
             # 繪製直線段
             ax.plot([current_x, draw_end_x], [current_y, draw_end_y], 
                     color=settings['colors']['rebar'], 
                     linewidth=settings['line_width'], 
                     solid_capstyle='round')
-            
             # 記錄段中點用於標註
             mid_x = (current_x + draw_end_x) / 2
             mid_y = (current_y + draw_end_y) / 2
             segment_midpoints.append((mid_x, mid_y, length, dx, dy, i))
-            
             # 更新當前位置
             current_x, current_y = segment_end_x, segment_end_y
             points.append((current_x, current_y))
-            current_direction += 1
-        
         # 添加尺寸標註
         for mid_x, mid_y, length, dx, dy, i in segment_midpoints:
             # 計算標註位置偏移
@@ -604,7 +606,6 @@ class GraphicsManager:
                         fontsize=settings['font_size'], fontweight='bold', 
                         color=settings['colors']['text'], rotation=90,
                         bbox=dict(boxstyle="round,pad=0.2", facecolor='white', alpha=0.8))
-        
         # 鋼筋編號標註
         ax.text(start_x - 60, start_y, rebar_number, 
                 ha='center', va='center', 
@@ -612,19 +613,16 @@ class GraphicsManager:
                 fontweight='bold', 
                 color=settings['colors']['text'],
                 bbox=dict(boxstyle="round,pad=0.4", facecolor='white', edgecolor='gray'))
-        
         # 技術資訊
         diameter = self.rebar_diameters.get(rebar_number, 12.7)
         material_grade = self.get_material_grade(rebar_number)
         total_length = sum(segments)
         segment_text = ' + '.join([str(int(s)) for s in segments])
-        
         # 找到圖形右上角位置放置資訊
         all_x = [p[0] for p in points]
         all_y = [p[1] for p in points]
         info_x = max(all_x) + 30
         info_y = max(all_y)
-        
         ax.text(info_x, info_y, 
                 f'鋼筋規格: D{diameter}mm\n'
                 f'材料等級: {material_grade}\n'
@@ -637,23 +635,18 @@ class GraphicsManager:
                 color=settings['colors']['text'], 
                 linespacing=1.5,
                 bbox=dict(boxstyle="round,pad=0.5", facecolor='lightblue', alpha=0.3))
-        
         # 自動調整圖形範圍
         margin = 80
         ax.set_xlim(min(all_x) - margin, max(all_x) + margin + 150)
         ax.set_ylim(min(all_y) - margin, max(all_y) + margin)
         ax.axis('off')
         
-        # 添加標題
-        fig.suptitle(f'複合鋼筋 {rebar_number} - {len(segments)}段彎曲', 
-                    fontsize=settings['font_size'] + 2, fontweight='bold')
-        
         plt.tight_layout()
         return self._figure_to_base64(fig)
     
-    def _draw_basic_complex_rebar(self, segments, rebar_number):
+    def _draw_basic_complex_rebar(self, segments, rebar_number, width=600, height=180):
         """繪製基本複雜鋼筋圖示（保留原有功能）"""
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig, ax = plt.subplots(figsize=(width/300, height/300))
         
         # 計算總長度和高度
         total_length = sum(segments)
@@ -780,50 +773,49 @@ class GraphicsManager:
         
         return description
 
-    def generate_rebar_diagram(self, segments, rebar_number, mode="professional"):
+    def generate_rebar_diagram(self, segments, rebar_number, mode="professional", angles=None, width=600, height=180):
         """
-        主要入口函數，根據段數和模式生成對應的鋼筋圖示
-        
-        Args:
-            segments: 分段長度列表 (cm)
-            rebar_number: 鋼筋編號
-            mode: 繪圖模式 ("professional", "basic", "ascii")
-        
-        Returns:
-            str: base64編碼的圖片或ASCII文字
+        主要入口函數，根據段數和模式生成對應的鋼筋圖示，支援 angles
         """
-        if not segments:
-            return self.draw_ascii_rebar([])
-        
-        # 過濾有效分段
-        valid_segments = [s for s in segments if s and s > 0]
-        if not valid_segments:
-            return self.draw_ascii_rebar([])
-        
+        print(f"[DEBUG] generate_rebar_diagram 開始，參數：rebar_number={rebar_number}, segments={segments}, mode={mode}, angles={angles}")
         try:
+            if not segments:
+                print("[DEBUG] segments 為空，回傳 None")
+                return None
+            
+            # 過濾有效分段
+            valid_segments = [s for s in segments if s and s > 0]
+            if not valid_segments:
+                print("[DEBUG] 過濾後的 segments 為空，回傳 None")
+                return None
+            
+            # 確保 segments 是數字列表
+            segments = [float(s) for s in segments]
+            print(f"[DEBUG] 轉換後的 segments: {segments}")
+            
+            # 根據鋼筋類型選擇繪圖函數
             if mode == "ascii":
+                print("[DEBUG] 使用 draw_ascii_rebar 繪製 ASCII 圖示")
                 return self.draw_ascii_rebar(valid_segments)
-            
             professional = (mode == "professional")
-            
             if len(valid_segments) == 1:
-                return self.draw_straight_rebar(valid_segments[0], rebar_number, professional)
+                print("[DEBUG] 使用 draw_straight_rebar 繪製直鋼筋")
+                return self.draw_straight_rebar(valid_segments[0], rebar_number, professional, width, height)
             elif len(valid_segments) == 2:
-                return self.draw_l_shaped_rebar(valid_segments[0], valid_segments[1], rebar_number, professional)
+                print("[DEBUG] 使用 draw_l_shaped_rebar 繪製 L 型鋼筋")
+                return self.draw_l_shaped_rebar(valid_segments[0], valid_segments[1], rebar_number, professional, width, height)
             elif len(valid_segments) == 3:
-                return self.draw_u_shaped_rebar(valid_segments[0], valid_segments[1], valid_segments[2], rebar_number, professional)
+                print("[DEBUG] 使用 draw_u_shaped_rebar 繪製 U 型鋼筋")
+                return self.draw_u_shaped_rebar(valid_segments[0], valid_segments[1], valid_segments[2], rebar_number, professional, width, height)
             else:
-                return self.draw_complex_rebar(valid_segments, rebar_number, professional)
-                
+                print("[DEBUG] 使用 draw_complex_rebar 繪製複雜鋼筋")
+                return self.draw_complex_rebar(valid_segments, rebar_number, professional, angles, width, height)
         except Exception as e:
-            # 如果專業模式失敗，嘗試基本模式
-            if mode == "professional":
-                try:
-                    return self.generate_rebar_diagram(segments, rebar_number, "basic")
-                except:
-                    return self.draw_ascii_rebar(valid_segments)
-            else:
-                return self.draw_ascii_rebar(valid_segments)
+            print(f"[ERROR] generate_rebar_diagram 發生錯誤: {str(e)}")
+            print("[DEBUG] 降級為 ASCII 圖形")
+            ascii_diagram = self.draw_ascii_rebar(valid_segments)
+            print(f"[DEBUG] ASCII 圖形預覽: {ascii_diagram[:40]}")
+            return ascii_diagram
 
     def save_figure_as_file(self, base64_data, filename, dpi=300):
         """
@@ -856,12 +848,11 @@ class GraphicsManager:
 
     @staticmethod
     def _figure_to_base64(fig):
-        """將 matplotlib 圖形轉換為 base64 字串"""
+        """將 matplotlib figure 轉換為 base64 字串"""
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', bbox_inches='tight', 
-                   pad_inches=0.1, dpi=200, facecolor='white', edgecolor='none')
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         buf.seek(0)
-        img_str = base64.b64encode(buf.read()).decode()
+        img_str = base64.b64encode(buf.getvalue()).decode('ascii')
         plt.close(fig)
         return img_str
 
