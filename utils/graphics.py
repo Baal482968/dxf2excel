@@ -170,10 +170,9 @@ class GraphicsManager:
         end_x = start_x + length_scaled
         # 主線
         ax.plot([start_x, end_x], [start_y, start_y], color='#2C3E50', linewidth=4, solid_capstyle='round')
-        # 長度標註
-        ax.text((start_x+end_x)/2, start_y-15, f'{int(length)}', ha='center', va='bottom', fontsize=16, color='#E74C3C')
-        # 編號
-        ax.text(start_x-18, start_y, rebar_number, ha='right', va='center', fontsize=18, fontweight='bold', color='#2C3E50')
+        # 長度標註（線上方，黑色，粗體，白色底框，明顯在線上方）
+        ax.text((start_x+end_x)/2, start_y-25, f'{int(length)}', ha='center', va='top', fontsize=16, color='black', fontweight='bold', bbox=dict(boxstyle="square,pad=0.2", facecolor='white', edgecolor='none', alpha=1.0))
+        # 不顯示編號
         ax.set_xlim(0, width)
         ax.set_ylim(0, height)
         ax.axis('off')
@@ -204,28 +203,29 @@ class GraphicsManager:
             # 交換順序，讓短段在上/左
             return self._draw_professional_l_shaped_rebar(length2, length1, rebar_number, width, height) if professional else self._draw_basic_l_shaped_rebar(length2, length1, rebar_number, width, height)
     
-    def _draw_professional_l_shaped_rebar(self, length1, length2, rebar_number, width=240, height=80):
-        """極簡L型鋼筋圖示（放大線條與字體，內容置中）"""
+    def _draw_professional_l_shaped_rebar(self, length1, length2, rebar_number, width=360, height=180):
+        """極簡L型鋼筋圖示（橫線+直線，長度固定較大，字體大且分散，置中，標註正確，不顯示號數）"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
-        scale = 0.5
-        l1 = length1 * scale
-        l2 = length2 * scale
+        # 固定較大長度
+        l1 = 220  # 橫線長度(px)
+        l2 = 120  # 直線長度(px)
         # 置中計算
-        total_w = l1
-        total_h = l2
-        start_x = (width - total_w) / 2
-        start_y = (height + total_h) / 2
-        h1_end_x = start_x + l1
-        v2_end_y = start_y - l2
-        # 主線
-        ax.plot([start_x, h1_end_x], [start_y, start_y], color='#2C3E50', linewidth=4, solid_capstyle='round')
-        ax.plot([h1_end_x, h1_end_x], [start_y, v2_end_y], color='#2C3E50', linewidth=4, solid_capstyle='round')
-        # 長度標註
-        ax.text((start_x+h1_end_x)/2, start_y-15, f'{int(length1)}', ha='center', va='bottom', fontsize=16, color='#E74C3C')
-        ax.text(h1_end_x+8, (start_y+v2_end_y)/2, f'{int(length2)}', ha='left', va='center', fontsize=16, color='#E74C3C')
-        # 編號
-        ax.text(start_x-18, start_y, rebar_number, ha='right', va='center', fontsize=18, fontweight='bold', color='#2C3E50')
+        center_x = width / 2
+        center_y = height / 2
+        start_x = center_x - l1 / 2
+        start_y = center_y - l2 / 2
+        end_x = start_x + l1
+        end_y = start_y + l2
+        # 畫橫線
+        ax.plot([start_x, end_x], [start_y, start_y], color='#2C3E50', linewidth=5, solid_capstyle='round')
+        # 畫直線
+        ax.plot([end_x, end_x], [start_y, end_y], color='#2C3E50', linewidth=5, solid_capstyle='round')
+        # 21：橫線下方中央
+        ax.text((start_x+end_x)/2, start_y+40, f'{int(length1)}', ha='center', va='top', fontsize=32, color='black', fontweight='bold', bbox=dict(boxstyle="square,pad=0.3", facecolor='white', edgecolor='none', alpha=1.0))
+        # 550：直線右方中央
+        ax.text(end_x+20, (start_y+end_y)/2, f'{int(length2)}', ha='left', va='center', fontsize=32, color='black', fontweight='bold', bbox=dict(boxstyle="square,pad=0.3", facecolor='white', edgecolor='none', alpha=1.0))
+        # 不顯示號數
         ax.set_xlim(0, width)
         ax.set_ylim(0, height)
         ax.axis('off')
