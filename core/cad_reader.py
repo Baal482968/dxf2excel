@@ -179,22 +179,21 @@ class CADReader:
                 associated_lines = self.find_associated_lines(rebar_text, rebar_lines)
                 # 計算總長度
                 total_length = sum(line['length'] for line in associated_lines)
-                rebar_number = rebar_text['rebar_number']
-                rebar_data.append({
-                    'rebar_number': rebar_number,
-                    'spacing': rebar_text.get('spacing'),
-                    'diameter': self.rebar_processor.get_rebar_diameter(rebar_number),
-                    'unit_weight': self.rebar_processor.get_rebar_unit_weight(rebar_number),
-                    'grade': self.rebar_processor.get_rebar_grade(rebar_number),
+                # 以 rebar_text 為基礎，merge 其他資訊
+                rebar_entry = dict(rebar_text)
+                rebar_entry.update({
+                    'diameter': self.rebar_processor.get_rebar_diameter(rebar_entry['rebar_number']),
+                    'unit_weight': self.rebar_processor.get_rebar_unit_weight(rebar_entry['rebar_number']),
+                    'grade': self.rebar_processor.get_rebar_grade(rebar_entry['rebar_number']),
                     'length': round(total_length),
                     'weight': round(self.rebar_processor.calculate_rebar_weight(
-                        rebar_number,
+                        rebar_entry['rebar_number'],
                         total_length
                     )),
                     'position': rebar_text.get('position'),
                     'associated_lines': associated_lines,
-                    'raw_text': rebar_text.get('raw_text', '')
                 })
+                rebar_data.append(rebar_entry)
             
             return rebar_data
         

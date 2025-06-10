@@ -75,9 +75,21 @@ class RebarProcessor:
     def parse_rebar_text(text):
         """
         支援多種鋼筋標記格式的解析，允許 # 前有任意字元，支援全形乘號、逗號、cm、括號等符號，並自動解析角度。
+        
+        支援格式：
+        1. #10-1000+1000+1000x31
+        2. #10-21+550x6
+        3. #10-1400x1
+        4. 折140#10-1000+1200x20
+        5. #10-510.5x11
+        6. #10-550+21x5
         """
         import re
         text = text.strip()
+        
+        # Debug: 印出原始文字
+        print(f"[DEBUG] 解析鋼筋文字: {text}")
+        
         # 解析角度（如「折135度」「135°」）
         angles = []
         angle_match = re.search(r'(?:折)?(\d{2,3})[°度]', text)
@@ -85,35 +97,68 @@ class RebarProcessor:
             try:
                 angle = int(angle_match.group(1))
                 angles.append(angle)
+                print(f"[DEBUG] 解析到角度: {angle}°")
             except:
                 pass
+        
         # 將全形乘號、逗號、空白等轉成半形
         text = text.replace('×', 'x').replace('，', ',').replace(' ', '')
+        
         # 找到第一個 # 開頭
         m = re.search(r'#\d+', text)
         if not m:
+            print(f"[DEBUG] 未找到鋼筋編號")
             return None
+            
         start = m.start()
         text = text[start:]  # 只取 # 開頭到結尾
-        # 正則：#號(@間距)?(,)?(分段長度)?(x數量)?(備註)?
-        pattern = r'#(?P<number>\d+)(?:@(?P<spacing>\d+))?(?:,)?(?P<segments>[-+xX,\dcm()]+)?x?(?P<count>\d+)?'
-        match = re.match(pattern, text)
-        if not match:
-            return None
-        number = f"#{match.group('number')}"
-        spacing = int(match.group('spacing')) if match.group('spacing') else None
-        segments = match.group('segments')
-        count = int(match.group('count')) if match.group('count') else 1
-        # 解析分段長度，只取數字
-        seg_list = [int(s) for s in re.findall(r'\d+', segments)] if segments else []
-        return {
-            'rebar_number': number,
-            'spacing': spacing,
-            'segments': seg_list,
-            'angles': angles,
-            'count': count,
-            'raw_text': text
-        }
+        
+        # 強化正則：#號-分段x數量
+        # 支援：
+        # 1. 整數：1000
+        # 2. 小數：510.5
+        # 3. 多段：1000+1000+1000
+        pattern = r'#(\d+)-([\d\.]+(?:\+[\d\.]+)*)x(\d+)'
+        m = re.match(pattern, text)
+        
+        if m:
+            number = f"#{m.group(1)}"
+            segments_str = m.group(2)
+            count = int(m.group(3))
+            
+            # 解析分段
+            segments = []
+            for seg in segments_str.split('+'):
+                try:
+                    if '.' in seg:
+                        segments.append(float(seg))
+                    else:
+                        segments.append(int(seg))
+                except ValueError:
+                    print(f"[DEBUG] 無法解析分段: {seg}")
+                    continue
+            
+            # 確保 segments 不為空
+            if not segments:
+                print(f"[DEBUG] segments 為空，無法解析")
+                return None
+            
+            result = {
+                'rebar_number': number,
+                'segments': segments,
+                'angles': angles,
+                'count': count,
+                'raw_text': text,
+                'length': sum(segments)  # 添加總長度
+            }
+            
+            # Debug: 印出解析結果
+            print(f"[DEBUG] 解析結果: {result}")
+            
+            return result
+            
+        print(f"[DEBUG] 無法解析鋼筋文字格式: {text}")
+        return None
 
     @staticmethod
     def validate_rebar_number(number):

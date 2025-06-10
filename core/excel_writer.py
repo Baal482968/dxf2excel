@@ -199,14 +199,20 @@ class ExcelWriter:
     
     def _get_rebar_segments(self, rebar):
         """從鋼筋資料中提取分段長度"""
-        segments = []
+        print(f"[DEBUG] _get_rebar_segments 開始，rebar 資料: {rebar}")
         
-        # 嘗試不同的分段長度欄位
-        segment_keys = ['segments', 'lengths', 'A', 'B', 'C', 'D', 'E']
+        # 直接檢查 segments 欄位
+        if 'segments' in rebar and isinstance(rebar['segments'], list) and rebar['segments']:
+            print(f"[DEBUG] 找到 segments: {rebar['segments']}")
+            return rebar['segments']
+        
+        # 如果沒有 segments，嘗試其他欄位
+        segments = []
+        segment_keys = ['lengths', 'A', 'B', 'C', 'D', 'E']
         
         for key in segment_keys:
             if key in rebar and rebar[key] is not None:
-                if key == 'segments' and isinstance(rebar[key], list):
+                if key == 'lengths' and isinstance(rebar[key], list):
                     segments = rebar[key]
                     break
                 elif key in ['A', 'B', 'C', 'D', 'E']:
@@ -215,10 +221,11 @@ class ExcelWriter:
                     if rebar[key] > 0:
                         segments.append(rebar[key])
         
-        # 如果沒有分段資料，使用總長度
+        # 如果還是沒有分段資料，使用總長度
         if not segments and 'length' in rebar and rebar['length'] > 0:
             segments = [rebar['length']]
         
+        print(f"[DEBUG] _get_rebar_segments 回傳: {segments}")
         return segments
     
     def _generate_rebar_visual(self, rebar):
@@ -292,9 +299,16 @@ class ExcelWriter:
         current_row = start_row
         
         for idx, rebar in enumerate(rebar_data, 1):
+            print(f"[DEBUG] 處理第 {idx} 筆鋼筋資料: {rebar}")
+            
             # 基本資料
             self.worksheet.cell(row=current_row, column=1).value = idx
             self.worksheet.cell(row=current_row, column=2).value = rebar.get('rebar_number', '')
+            
+            # 確保 rebar 資料包含 segments
+            if 'segments' not in rebar or not rebar['segments']:
+                print(f"[DEBUG] 鋼筋資料缺少 segments，嘗試從其他欄位提取")
+                rebar['segments'] = self._get_rebar_segments(rebar)
             
             # 生成鋼筋視覺表示
             text_description = self._generate_rebar_visual(rebar)
