@@ -88,7 +88,7 @@ class RebarProcessor:
         text = text.strip()
         
         # Debug: 印出原始文字
-        print(f"[DEBUG] 解析鋼筋文字: {text}")
+        # print(f"[DEBUG] 解析鋼筋文字: {text}")
         
         # 解析角度（如「折135度」「135°」）
         angles = []
@@ -97,7 +97,7 @@ class RebarProcessor:
             try:
                 angle = int(angle_match.group(1))
                 angles.append(angle)
-                print(f"[DEBUG] 解析到角度: {angle}°")
+                # print(f"[DEBUG] 解析到角度: {angle}°")
             except:
                 pass
         
@@ -107,7 +107,7 @@ class RebarProcessor:
         # 找到第一個 # 開頭
         m = re.search(r'#\d+', text)
         if not m:
-            print(f"[DEBUG] 未找到鋼筋編號")
+            # print(f"[DEBUG] 未找到鋼筋編號")
             return None
             
         start = m.start()
@@ -135,12 +135,12 @@ class RebarProcessor:
                     else:
                         segments.append(int(seg))
                 except ValueError:
-                    print(f"[DEBUG] 無法解析分段: {seg}")
+                    # print(f"[DEBUG] 無法解析分段: {seg}")
                     continue
             
             # 確保 segments 不為空
             if not segments:
-                print(f"[DEBUG] segments 為空，無法解析")
+                # print(f"[DEBUG] segments 為空，無法解析")
                 return None
             
             result = {
@@ -152,12 +152,11 @@ class RebarProcessor:
                 'length': sum(segments)  # 添加總長度
             }
             
-            # Debug: 印出解析結果
-            print(f"[DEBUG] 解析結果: {result}")
+            # print(f"[DEBUG] 解析結果: {result}")
             
             return result
             
-        print(f"[DEBUG] 無法解析鋼筋文字格式: {text}")
+        # print(f"[DEBUG] 無法解析鋼筋文字格式: {text}")
         return None
 
     @staticmethod
