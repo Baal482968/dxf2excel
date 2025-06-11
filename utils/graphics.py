@@ -195,37 +195,29 @@ class GraphicsManager:
         return self._figure_to_base64(fig)
 
     def draw_l_shaped_rebar(self, length1, length2, rebar_number, professional=True, width=600, height=180):
-        """繪製 L 型鋼筋圖示（自動判斷短段在上/左）"""
-        # 自動判斷短段在上/左
-        if length1 <= length2:
-            return self._draw_professional_l_shaped_rebar(length1, length2, rebar_number, width, height) if professional else self._draw_basic_l_shaped_rebar(length1, length2, rebar_number, width, height)
-        else:
-            # 交換順序，讓短段在上/左
-            return self._draw_professional_l_shaped_rebar(length2, length1, rebar_number, width, height) if professional else self._draw_basic_l_shaped_rebar(length2, length1, rebar_number, width, height)
+        """繪製 L 型鋼筋圖示（線段長度固定，標註數字依 DXF 文字順序）"""
+        return self._draw_professional_l_shaped_rebar(length1, length2, rebar_number, width, height) if professional else self._draw_basic_l_shaped_rebar(length1, length2, rebar_number, width, height)
     
     def _draw_professional_l_shaped_rebar(self, length1, length2, rebar_number, width=360, height=180):
-        """極簡L型鋼筋圖示（橫線+直線，長度固定較大，字體大且分散，置中，標註正確，不顯示號數）"""
+        """極簡L型鋼筋圖示，線段長度固定，標註數字依 DXF 文字順序"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
-        # 固定較大長度
-        l1 = 220  # 橫線長度(px)
-        l2 = 120  # 直線長度(px)
-        # 置中計算
+        # 固定圖形長度
+        hor_len = 220  # 橫線長度(px)
+        ver_len = 80   # 直線長度(px)
         center_x = width / 2
         center_y = height / 2
-        start_x = center_x - l1 / 2
-        start_y = center_y - l2 / 2
-        end_x = start_x + l1
-        end_y = start_y + l2
-        # 畫橫線
-        ax.plot([start_x, end_x], [start_y, start_y], color='#2C3E50', linewidth=5, solid_capstyle='round')
-        # 畫直線
-        ax.plot([end_x, end_x], [start_y, end_y], color='#2C3E50', linewidth=5, solid_capstyle='round')
-        # 21：橫線下方中央
-        ax.text((start_x+end_x)/2, start_y+40, f'{int(length1)}', ha='center', va='top', fontsize=32, color='black', fontweight='bold', bbox=dict(boxstyle="square,pad=0.3", facecolor='white', edgecolor='none', alpha=1.0))
-        # 550：直線右方中央
-        ax.text(end_x+20, (start_y+end_y)/2, f'{int(length2)}', ha='left', va='center', fontsize=32, color='black', fontweight='bold', bbox=dict(boxstyle="square,pad=0.3", facecolor='white', edgecolor='none', alpha=1.0))
-        # 不顯示號數
+        # 左側直線
+        start_x = center_x - hor_len / 2
+        start_y = center_y + ver_len / 2
+        # 畫直線（左側）
+        ax.plot([start_x, start_x], [start_y, start_y - ver_len], color='#2C3E50', linewidth=5, solid_capstyle='round')
+        # 畫橫線（下方）
+        ax.plot([start_x, start_x + hor_len], [start_y - ver_len, start_y - ver_len], color='#2C3E50', linewidth=5, solid_capstyle='round')
+        # segments[0] 標在直線中央
+        ax.text(start_x - 20, start_y - ver_len/2, f'{int(length1)}', ha='right', va='center', fontsize=32, color='black', fontweight='bold', bbox=dict(boxstyle="square,pad=0.3", facecolor='white', edgecolor='none', alpha=1.0))
+        # segments[1] 標在橫線下方中央
+        ax.text(start_x + hor_len/2, start_y - ver_len - 20, f'{int(length2)}', ha='center', va='top', fontsize=28, color='black', fontweight='bold', bbox=dict(boxstyle="square,pad=0.3", facecolor='white', edgecolor='none', alpha=1.0))
         ax.set_xlim(0, width)
         ax.set_ylim(0, height)
         ax.axis('off')
