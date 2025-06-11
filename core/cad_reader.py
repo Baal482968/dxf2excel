@@ -175,11 +175,13 @@ class CADReader:
             
             # 處理每個鋼筋文字
             for rebar_text in rebar_texts:
-                # 尋找相關線段
                 associated_lines = self.find_associated_lines(rebar_text, rebar_lines)
-                # 計算總長度
-                total_length = sum(line['length'] for line in associated_lines)
-                # 以 rebar_text 為基礎，merge 其他資訊
+                # 預設用 parse_rebar_text 的 segments 加總
+                segments = rebar_text.get('segments', [])
+                if segments:
+                    total_length = sum(segments)
+                else:
+                    total_length = sum(line['length'] for line in associated_lines)
                 rebar_entry = dict(rebar_text)
                 rebar_entry.update({
                     'diameter': self.rebar_processor.get_rebar_diameter(rebar_entry['rebar_number']),
