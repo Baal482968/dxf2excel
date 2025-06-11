@@ -262,7 +262,7 @@ class GraphicsManager:
         margin_x = 18
         margin_y = 16
         # 橫線加長倍率
-        hor_scale = 2.0
+        hor_scale = 2.6
         # 計算縮放比例
         l1 = float(length1)
         l2 = float(length2) * hor_scale
@@ -276,19 +276,20 @@ class GraphicsManager:
         l1s = float(length1) * scale
         l2s = float(length2) * hor_scale * scale
         l3s = float(length3) * scale
-        # 起點設在左下角
-        p1 = (margin_x, height - margin_y)
-        p2 = (margin_x, height - margin_y - l1s)
-        p3 = (margin_x + l2s, height - margin_y - l1s)
-        p4 = (margin_x + l2s, height - margin_y - l1s + l3s)
-        # 主線
-        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='#2C3E50', linewidth=4, solid_capstyle='round')  # 左豎
-        ax.plot([p2[0], p3[0]], [p2[1], p3[1]], color='#2C3E50', linewidth=4, solid_capstyle='round')  # 橫
-        ax.plot([p3[0], p4[0]], [p3[1], p4[1]], color='#2C3E50', linewidth=4, solid_capstyle='round')  # 右豎
-        # 長度標註（貼外側且分散）
-        ax.text(p1[0]-18, (p1[1]+p2[1])/2, f'{int(length1)}', ha='right', va='center', fontsize=16, color='#E74C3C')
-        ax.text((p2[0]+p3[0])/2, p2[1]-16, f'{int(length2)}', ha='center', va='bottom', fontsize=16, color='#E74C3C')
-        ax.text(p3[0]+18, (p3[1]+p4[1])/2, f'{int(length3)}', ha='left', va='center', fontsize=16, color='#E74C3C')
+        # U 字形：橫線在下，兩豎線朝下
+        # 起點設在左上角
+        p1 = (margin_x, margin_y)  # 左上
+        p2 = (margin_x, margin_y + l1s)  # 左下
+        p3 = (margin_x + l2s, margin_y + l1s)  # 右下
+        p4 = (margin_x + l2s, margin_y)  # 右上
+        # 主線（黑色，細線）
+        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='black', linewidth=1.2, solid_capstyle='butt')  # 左豎
+        ax.plot([p2[0], p3[0]], [p2[1], p3[1]], color='black', linewidth=1.2, solid_capstyle='butt')  # 橫（下）
+        ax.plot([p3[0], p4[0]], [p3[1], p4[1]], color='black', linewidth=1.2, solid_capstyle='butt')  # 右豎
+        # 長度標註（左、下、右，黑色，無粗體，字體小）
+        ax.text(p1[0]-10, (p1[1]+p2[1])/2, f'{int(length1)}', ha='right', va='center', fontsize=13, color='black')
+        ax.text((p2[0]+p3[0])/2, p2[1]-10, f'{int(length2)}', ha='center', va='bottom', fontsize=13, color='black')
+        ax.text(p4[0]+10, (p4[1]+p3[1])/2, f'{int(length3)}', ha='left', va='center', fontsize=13, color='black')
         # 不顯示編號
         ax.set_xlim(0, width)
         ax.set_ylim(height, 0)  # y軸反轉，讓原點在左上
@@ -546,6 +547,34 @@ class GraphicsManager:
         
         return description
 
+    def draw_n_shaped_rebar(self, length1, length2, length3, rebar_number, width=240, height=80):
+        """繪製 N 型鋼筋圖示（左上→左中，左中→右中，右中→右下，兩豎線都朝下，橫線水平）"""
+        fig, ax = plt.subplots(figsize=(width/100, height/100))
+        ax.set_aspect('equal')
+        # 固定長度
+        ver_len = 32   # 豎線長度(px)
+        hor_len = 80   # 橫線長度(px)
+        margin_x = 30
+        margin_y = 20
+        # 座標
+        p1 = (margin_x, margin_y)  # 左上
+        p2 = (margin_x, margin_y + ver_len)  # 左中
+        p3 = (margin_x + hor_len, margin_y + ver_len)  # 右中
+        p4 = (margin_x + hor_len, margin_y + ver_len + ver_len)  # 右下
+        # 主線
+        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='black', linewidth=1.2)  # 左豎
+        ax.plot([p2[0], p3[0]], [p2[1], p3[1]], color='black', linewidth=1.2)  # 水平橫線
+        ax.plot([p3[0], p4[0]], [p3[1], p4[1]], color='black', linewidth=1.2)  # 右豎
+        # 長度標註
+        ax.text(p1[0]-10, (p1[1]+p2[1])/2, f'{int(length1)}', ha='right', va='center', fontsize=13, color='black')
+        ax.text((p2[0]+p3[0])/2, p2[1]-10, f'{int(length2)}', ha='center', va='top', fontsize=13, color='black')
+        ax.text(p4[0]+10, (p3[1]+p4[1])/2, f'{int(length3)}', ha='left', va='center', fontsize=13, color='black')
+        ax.set_xlim(0, width)
+        ax.set_ylim(0, height)
+        ax.axis('off')
+        plt.tight_layout(pad=0.2)
+        return self._figure_to_base64(fig)
+
     def generate_rebar_diagram(self, segments, rebar_number, mode="professional", angles=None, width=600, height=180):
         """
         主要入口函數，根據段數和模式生成對應的鋼筋圖示，支援 angles
@@ -559,6 +588,9 @@ class GraphicsManager:
                 return None
             # 確保 segments 是數字列表
             segments = [float(s) for s in segments]
+            # N 型判斷
+            if isinstance(rebar_number, str) and rebar_number.strip().upper().startswith('N#') and len(valid_segments) == 3:
+                return self.draw_n_shaped_rebar(valid_segments[0], valid_segments[1], valid_segments[2], rebar_number, 240, 80)
             # 根據鋼筋類型選擇繪圖函數
             if mode == "ascii":
                 return self.draw_ascii_rebar(valid_segments)

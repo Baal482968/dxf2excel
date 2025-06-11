@@ -104,28 +104,13 @@ class RebarProcessor:
         # 將全形乘號、逗號、空白等轉成半形
         text = text.replace('×', 'x').replace('，', ',').replace(' ', '')
         
-        # 找到第一個 # 開頭
-        m = re.search(r'#\d+', text)
-        if not m:
-            # print(f"[DEBUG] 未找到鋼筋編號")
-            return None
-            
-        start = m.start()
-        text = text[start:]  # 只取 # 開頭到結尾
-        
-        # 強化正則：#號-分段x數量
-        # 支援：
-        # 1. 整數：1000
-        # 2. 小數：510.5
-        # 3. 多段：1000+1000+1000
-        pattern = r'#(\d+)-([\d\.]+(?:\+[\d\.]+)*)x(\d+)'
-        m = re.match(pattern, text)
-        
+        # 強化正則：支援 N# 或 # 開頭
+        pattern = r'(N#|#)(\d+)-([\d\.]+(?:\+[\d\.]+)*)x(\d+)'
+        m = re.match(pattern, text, re.IGNORECASE)
         if m:
-            number = f"#{m.group(1)}"
-            segments_str = m.group(2)
-            count = int(m.group(3))
-            
+            number = f"{m.group(1)}{m.group(2)}"  # 保留 N# 或 #
+            segments_str = m.group(3)
+            count = int(m.group(4))
             # 解析分段
             segments = []
             for seg in segments_str.split('+'):
@@ -135,25 +120,18 @@ class RebarProcessor:
                     else:
                         segments.append(int(seg))
                 except ValueError:
-                    # print(f"[DEBUG] 無法解析分段: {seg}")
                     continue
-            
             # 確保 segments 不為空
             if not segments:
-                # print(f"[DEBUG] segments 為空，無法解析")
                 return None
-            
             result = {
                 'rebar_number': number,
                 'segments': segments,
                 'angles': angles,
                 'count': count,
                 'raw_text': text,
-                'length': sum(segments)  # 添加總長度
+                'length': sum(segments)
             }
-            
-            # print(f"[DEBUG] 解析結果: {result}")
-            
             return result
             
         # print(f"[DEBUG] 無法解析鋼筋文字格式: {text}")
