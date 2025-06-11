@@ -4,6 +4,7 @@
 
 import re
 from config import REBAR_UNIT_WEIGHT, REBAR_DIAMETERS, REBAR_GRADES
+from utils.graphics import GraphicsManager
 
 class RebarProcessor:
     """鋼筋處理器"""
@@ -103,6 +104,23 @@ class RebarProcessor:
         
         # 將全形乘號、逗號、空白等轉成半形
         text = text.replace('×', 'x').replace('，', ',').replace(' ', '')
+        
+        # 支援折開頭格式
+        if text.startswith('折'):
+            # 解析號數
+            m = re.search(r'#(\d+)', text)
+            rebar_no = f"#{m.group(1)}" if m else ""
+            parsed = GraphicsManager()._parse_bent_rebar(text)
+            if parsed:
+                angle, length1, length2 = parsed
+                return {
+                    'rebar_number': rebar_no,
+                    'segments': [length1, length2],
+                    'angles': [angle],
+                    'count': 1,
+                    'raw_text': text,
+                    'length': length1 + length2
+                }
         
         # 強化正則：支援 N# 或 # 開頭
         pattern = r'(N#|#)(\d+)-([\d\.]+(?:\+[\d\.]+)*)x(\d+)'

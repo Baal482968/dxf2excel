@@ -224,7 +224,8 @@ class ExcelWriter:
         """
         生成鋼筋視覺表示（圖片或文字描述）
         """
-        rebar_number = rebar.get('rebar_number', '#4')
+        # 優先使用 raw_text 作為 rebar_number 傳給 generate_rebar_diagram
+        rebar_number = rebar.get('raw_text', rebar.get('rebar_number', '#4'))
         segments = self._get_rebar_segments(rebar)
         angles = rebar.get('angles', None)
         image_path = None
