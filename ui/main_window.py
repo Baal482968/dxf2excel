@@ -220,15 +220,12 @@ class MainWindow:
         threading.Thread(target=self.convert_process, daemon=True).start()
         self.status_label.pack(pady=5)  # 開始處理時顯示
     
-    def write_excel_on_main_thread(self, rebar_data):
+    def write_excel_on_main_thread(self, grouped_data):
         self.excel_writer.create_workbook()
-        self.excel_writer.write_title("鋼筋計料表")
-        self.excel_writer.write_header()
-        self.excel_writer.write_rebar_data(rebar_data)
+        self.excel_writer.write_multi_sheet_rebar_data(grouped_data)
         self.excel_writer.save_workbook(self.excel_file_path.get())
         self.status_var.set("轉換完成！")
         self.progress_var.set(100)
-        # messagebox.showinfo("完成", "轉換完成！")  # 不再跳出提示視窗
         self.open_file_btn.grid(row=0, column=2, padx=16, ipadx=8, ipady=4, sticky="ew")
 
     def convert_process(self):

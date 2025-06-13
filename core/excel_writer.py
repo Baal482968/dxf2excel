@@ -126,29 +126,25 @@ class ExcelWriter:
                 print(f"⚠️ 無法刪除暫存檔 {temp_file}: {e}")
         self.temp_image_files = []
     
-    def write_header(self):
-        """寫入表頭"""
+    def write_header(self, start_row=2):
+        """寫入表頭，可指定起始 row"""
         if self.image_mode in ["image", "mixed"]:
             headers = [
                 "編號", "號數", "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
             ]
-            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]  # 圖示欄較寬
+            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]
         else:
             headers = [
                 "編號", "號數", "圖示描述", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
             ]
-            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]  # 圖示描述欄更寬
-        
-        # 寫入表頭
+            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]
         for col, header in enumerate(headers, 1):
-            cell = self.worksheet.cell(row=2, column=col)
+            cell = self.worksheet.cell(row=start_row, column=col)
             cell.value = header
             cell.font = self.styles['header_font']
             cell.fill = self.styles['header_fill']
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = self.styles['border']
-        
-        # 設定欄寬
         for col, width in enumerate(column_widths, 1):
             self.worksheet.column_dimensions[get_column_letter(col)].width = width
     
@@ -434,6 +430,26 @@ class ExcelWriter:
         # 設定自動篩選
         if self.worksheet.max_row > 2:
             self.worksheet.auto_filter.ref = f'A2:{get_column_letter(self.worksheet.max_column)}{self.worksheet.max_row}'
+    
+    def write_multi_sheet_rebar_data(self, grouped_data, main_title="鋼筋計料表"):
+        """依據分組資料寫入多個 sheet，每個分組一張表"""
+        if not self.workbook:
+            self.create_workbook()
+        first = True
+        for sheet_name, rebar_list in grouped_data.items():
+            if first:
+                ws = self.worksheet
+                ws.title = sheet_name if sheet_name else "料表"
+                first = False
+            else:
+                ws = self.workbook.create_sheet(title=sheet_name if sheet_name else "料表")
+            self.worksheet = ws
+            header_row = self.write_title(main_title, subtitle=sheet_name)
+            self.write_header(start_row=header_row)
+            next_row = self.write_rebar_data(rebar_list, start_row=header_row + 1)
+            summary_row = self.write_summary(rebar_list, next_row)
+            self.write_footer(summary_row + 1)
+            self.format_worksheet()
 
 
 # 便利函數

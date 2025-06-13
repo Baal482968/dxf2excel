@@ -160,23 +160,65 @@ class CADReader:
         
         return associated_lines
     
+    def get_rebar_tables(self):
+        """取得所有 $P- 開頭的 LWPOLYLINE 框線及名稱與多邊形座標"""
+        if not self.modelspace:
+            return []
+        tables = []
+        for polyline in self.modelspace.query('LWPOLYLINE'):
+            layer = polyline.dxf.layer if hasattr(polyline.dxf, 'layer') else ''
+            if layer.startswith('$P-'):
+                name = layer[3:] if len(layer) > 3 else layer
+                points = [(point[0], point[1]) for point in polyline.get_points()]
+                tables.append({'name': name, 'points': points})
+        return tables
+
+    @staticmethod
+    def point_in_polygon(x, y, polygon):
+        """判斷點 (x, y) 是否在多邊形 polygon 內 (射線法)"""
+        num = len(polygon)
+        j = num - 1
+        inside = False
+        for i in range(num):
+            xi, yi = polygon[i]
+            xj, yj = polygon[j]
+            intersect = ((yi > y) != (yj > y)) and \
+                        (x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi)
+            if intersect:
+                inside = not inside
+            j = i
+        return inside
+
     def process_drawing(self):
-        """處理整個圖面"""
+        """處理整個圖面，依據框線分組回傳 dict: {區塊名稱: [rebar list]}"""
         if not self.modelspace:
             return None
-        
         try:
-            # 提取所有鋼筋文字和線段
             rebar_texts = self.extract_rebar_texts()
             rebar_lines = self.extract_rebar_lines()
-            
-            # 建立鋼筋資料
-            rebar_data = []
-            
+            tables = self.get_rebar_tables()
+            # 預設分組: {區塊名稱: [rebar list]}
+            grouped = {tb['name']: [] for tb in tables}
+            # 若沒框線，全部歸入 '全部'
+            if not tables:
+                grouped = {'全部': []}
+                tables = [{'name': '全部', 'points': None}]
             # 處理每個鋼筋文字
             for rebar_text in rebar_texts:
+                pos = rebar_text.get('position')
+                assigned = False
+                if pos:
+                    x, y = pos[0], pos[1]
+                    for tb in tables:
+                        if tb['points'] and self.point_in_polygon(x, y, tb['points']):
+                            assigned = True
+                            target_name = tb['name']
+                            break
+                    else:
+                        target_name = tables[0]['name']  # 若沒命中，歸第一個
+                else:
+                    target_name = tables[0]['name']
                 associated_lines = self.find_associated_lines(rebar_text, rebar_lines)
-                # 預設用 parse_rebar_text 的 segments 加總
                 segments = rebar_text.get('segments', [])
                 if segments:
                     total_length = sum(segments)
@@ -195,10 +237,8 @@ class CADReader:
                     'position': rebar_text.get('position'),
                     'associated_lines': associated_lines,
                 })
-                rebar_data.append(rebar_entry)
-            
-            return rebar_data
-        
+                grouped[target_name].append(rebar_entry)
+            return grouped
         except Exception as e:
             print(f"處理圖面錯誤: {str(e)}")
             return None 
