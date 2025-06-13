@@ -582,14 +582,14 @@ class GraphicsManager:
         plt.tight_layout(pad=0.2)
         return self._figure_to_base64(fig)
 
-    def draw_bent_rebar_diagram(self, angle, length1, length2, rebar_number, width=240, height=80):
+    def draw_bent_rebar_diagram(self, angle, length1, length2, rebar_number, width=400, height=160):
         """繪製折彎鋼筋圖示（工程圖標準：左水平→折點→右水平，標註位置正確，置中顯示）"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
         # 固定顯示長度
-        L1 = 80
-        L2 = 80
-        margin = 30
+        L1 = 120
+        L2 = 120
+        margin = 50
         # 起點設在左側中間
         x0, y0 = margin, height/2
         # 第一段：水平線
@@ -599,18 +599,14 @@ class GraphicsManager:
         x2 = x1 + L2 * np.cos(theta)
         y2 = y1 + L2 * np.sin(theta)
         # 畫線
-        ax.plot([x0, x1], [y0, y1], color='black', linewidth=1.8)
-        ax.plot([x1, x2], [y1, y2], color='black', linewidth=1.8)
+        ax.plot([x0, x1], [y0, y1], color='black', linewidth=2.2)
+        ax.plot([x1, x2], [y1, y2], color='black', linewidth=2.2)
         # 長度標註
-        ax.text((x0+x1)/2, y0-12, f'{int(length1)}', ha='center', va='bottom', fontsize=12, fontweight='bold', color='black', bbox=dict(boxstyle="square,pad=0.2", facecolor='white', edgecolor='none', alpha=1.0))
-        ax.text((x1+x2)/2, (y1+y2)/2-12, f'{int(length2)}', ha='center', va='bottom', fontsize=12, fontweight='bold', color='black', bbox=dict(boxstyle="square,pad=0.2", facecolor='white', edgecolor='none', alpha=1.0))
-        # 角度標註在折點下方中央
-        ax.text(x1, y1+18, f'{int(angle)}°', ha='center', va='top', fontsize=12, color='black', bbox=dict(boxstyle="round,pad=0.1", facecolor='white', edgecolor='none', alpha=0.8))
-        # 邊界與顯示
-        ax.set_xlim(0, width)
-        ax.set_ylim(0, height)
+        ax.text((x0+x1)/2 - 30, y0-38, f'{int(length1)}', ha='center', va='center', fontsize=12)
+        # 1200 標在第二段線的中心點，y 軸再往下 15 單位
+        ax.text((x1+x2)/2 + 10, (y1+y2)/2, f'{int(length2)}', ha='left', va='center', fontsize=12)
+        ax.text(x1-18, y1+28, f'{int(angle)}°', ha='center', va='center', fontsize=12)
         ax.axis('off')
-        plt.tight_layout(pad=0.2)
         return self._figure_to_base64(fig)
 
     def _parse_bent_rebar(self, rebar_number):
