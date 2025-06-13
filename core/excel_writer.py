@@ -76,11 +76,11 @@ class ExcelWriter:
         
         # 定義樣式
         self.styles = {
-            'header_font': Font(name='Calibri', size=12, bold=True, color='FFFFFF'),
-            'normal_font': Font(name='Calibri', size=11),
-            'small_font': Font(name='Calibri', size=9),
-            'title_font': Font(name='Calibri', size=14, bold=True),
-            'description_font': Font(name='Consolas', size=8),  # 等寬字體用於圖示描述
+            'header_font': Font(name='Calibri', size=14, bold=True, color='FFFFFF'),
+            'normal_font': Font(name='Calibri', size=14),
+            'small_font': Font(name='Calibri', size=12),
+            'title_font': Font(name='Calibri', size=16, bold=True),
+            'description_font': Font(name='Consolas', size=12),  # 等寬字體用於圖示描述
             'header_fill': PatternFill(start_color='4A90E2', end_color='4A90E2', fill_type='solid'),
             'light_fill': PatternFill(start_color='F8F9FA', end_color='F8F9FA', fill_type='solid'),
             'border': Border(
@@ -132,12 +132,12 @@ class ExcelWriter:
             headers = [
                 "編號", "號數", "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
             ]
-            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]
+            column_widths = [8, 10, 60, 12, 8, 12, 20, 45]
         else:
             headers = [
                 "編號", "號數", "圖示描述", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
             ]
-            column_widths = [8, 10, 40, 12, 8, 12, 20, 30]
+            column_widths = [8, 10, 40, 12, 8, 12, 20, 45]
         for col, header in enumerate(headers, 1):
             cell = self.worksheet.cell(row=start_row, column=col)
             cell.value = header
@@ -285,12 +285,14 @@ class ExcelWriter:
             if self.image_mode in ["image", "mixed"] and text_description:
                 try:
                     img = ExcelImage(text_description)
-                    img.width = 180
-                    img.height = 100
+                    img.width = 350
+                    img.height = 120
                     img.anchor = f'C{current_row}'
                     self.worksheet.add_image(img)
                     diagram_cell.value = ""
-                    self.worksheet.row_dimensions[current_row].height = img.height / 0.75
+                    self.worksheet.row_dimensions[current_row].height = 400
+                    # 確保圖示欄位有足夠的寬度
+                    self.worksheet.column_dimensions['C'].width = 60
                 except Exception as e:
                     print(f"⚠️ 圖片嵌入失敗: {e}")
                     diagram_cell.value = "(圖示生成失敗)"
