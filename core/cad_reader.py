@@ -81,9 +81,6 @@ class CADReader:
         except Exception as e:
             print(f"提取鋼筋文字錯誤: {str(e)}")
         
-        print("[DEBUG] 被抓到的鋼筋文字（raw_text）：")
-        for t in rebar_texts:
-            print(t.get('raw_text', ''))
         return rebar_texts
     
     def extract_rebar_lines(self):

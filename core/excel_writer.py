@@ -285,11 +285,12 @@ class ExcelWriter:
             if self.image_mode in ["image", "mixed"] and text_description:
                 try:
                     img = ExcelImage(text_description)
-                    img.width = 240
-                    img.height = 80
+                    img.width = 180
+                    img.height = 100
                     img.anchor = f'C{current_row}'
                     self.worksheet.add_image(img)
-                    diagram_cell.value = ""  # 圖示欄不寫入任何路徑或描述
+                    diagram_cell.value = ""
+                    self.worksheet.row_dimensions[current_row].height = img.height / 0.75
                 except Exception as e:
                     print(f"⚠️ 圖片嵌入失敗: {e}")
                     diagram_cell.value = "(圖示生成失敗)"

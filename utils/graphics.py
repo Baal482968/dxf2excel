@@ -152,14 +152,14 @@ class GraphicsManager:
             ax.text(dim_x + 12, mid_y, text, ha='left', va='center',
                    fontsize=font_size, fontweight='bold', color=settings['colors']['text'], rotation=90)
     
-    def draw_straight_rebar(self, length, rebar_number, professional=True, width=600, height=180):
+    def draw_straight_rebar(self, length, rebar_number, professional=True, width=400, height=220):
         """繪製直鋼筋圖示"""
         if professional:
             return self._draw_professional_straight_rebar(length, rebar_number, width, height)
         else:
             return self._draw_basic_straight_rebar(length, rebar_number, width, height)
     
-    def _draw_professional_straight_rebar(self, length, rebar_number, width=240, height=80):
+    def _draw_professional_straight_rebar(self, length, rebar_number, width=400, height=220):
         """極簡直鋼筋圖示（放大線條與字體，內容置中）"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
@@ -186,7 +186,7 @@ class GraphicsManager:
         plt.tight_layout(pad=0.2)
         return self._figure_to_base64(fig)
     
-    def _draw_basic_straight_rebar(self, length, rebar_number, width=600, height=180):
+    def _draw_basic_straight_rebar(self, length, rebar_number, width=400, height=220):
         """繪製基本直鋼筋圖示（保留原有功能）"""
         fig, ax = plt.subplots(figsize=(width/300, height/300))
         ax.plot([0, length], [0, 0], 
@@ -201,11 +201,11 @@ class GraphicsManager:
         
         return self._figure_to_base64(fig)
 
-    def draw_l_shaped_rebar(self, length1, length2, rebar_number, professional=True, width=600, height=180):
+    def draw_l_shaped_rebar(self, length1, length2, rebar_number, professional=True, width=400, height=220):
         """繪製 L 型鋼筋圖示（線段長度固定，標註數字依 DXF 文字順序）"""
         return self._draw_professional_l_shaped_rebar(length1, length2, rebar_number, width, height) if professional else self._draw_basic_l_shaped_rebar(length1, length2, rebar_number, width, height)
     
-    def _draw_professional_l_shaped_rebar(self, length1, length2, rebar_number, width=360, height=180):
+    def _draw_professional_l_shaped_rebar(self, length1, length2, rebar_number, width=400, height=220):
         """極簡L型鋼筋圖示，線段長度固定，標註數字依 DXF 文字順序"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
@@ -231,7 +231,7 @@ class GraphicsManager:
         plt.tight_layout(pad=0.2)
         return self._figure_to_base64(fig)
     
-    def _draw_basic_l_shaped_rebar(self, length1, length2, rebar_number, width=600, height=180):
+    def _draw_basic_l_shaped_rebar(self, length1, length2, rebar_number, width=400, height=220):
         """繪製基本L型鋼筋圖示（保留原有功能）"""
         fig, ax = plt.subplots(figsize=(width/300, height/300))
         
@@ -252,7 +252,7 @@ class GraphicsManager:
         
         return self._figure_to_base64(fig)
 
-    def draw_u_shaped_rebar(self, length1, length2, length3, rebar_number, professional=True, width=600, height=180):
+    def draw_u_shaped_rebar(self, length1, length2, length3, rebar_number, professional=True, width=400, height=220):
         """繪製 U 型或階梯型鋼筋圖示（自動判斷對稱或階梯）"""
         # 若兩側長度相等，畫對稱U型，否則畫階梯型
         if abs(length1 - length3) < 1e-3:
@@ -261,7 +261,7 @@ class GraphicsManager:
             # 階梯型視為複雜型
             return self._draw_professional_complex_rebar([length1, length2, length3], rebar_number, angles=None, width=width, height=height) if professional else self._draw_basic_complex_rebar([length1, length2, length3], rebar_number, width, height)
     
-    def _draw_professional_u_shaped_rebar(self, length1, length2, length3, rebar_number, width=240, height=80):
+    def _draw_professional_u_shaped_rebar(self, length1, length2, length3, rebar_number, width=400, height=220):
         """極簡U型鋼筋圖示（橫線加長，標註分散，不顯示編號）"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
@@ -304,7 +304,7 @@ class GraphicsManager:
         plt.tight_layout(pad=0.2)
         return self._figure_to_base64(fig)
     
-    def _draw_basic_u_shaped_rebar(self, length1, length2, length3, rebar_number, width=600, height=180):
+    def _draw_basic_u_shaped_rebar(self, length1, length2, length3, rebar_number, width=400, height=220):
         """繪製基本U型鋼筋圖示（保留原有功能）"""
         fig, ax = plt.subplots(figsize=(width/300, height/300))
         
@@ -331,14 +331,14 @@ class GraphicsManager:
         
         return self._figure_to_base64(fig)
 
-    def draw_complex_rebar(self, segments, rebar_number, professional=True, angles=None, width=600, height=180):
+    def draw_complex_rebar(self, segments, rebar_number, professional=True, angles=None, width=400, height=220):
         """繪製複雜多段鋼筋圖示，支援自訂彎曲角度"""
         if professional:
             return self._draw_professional_complex_rebar(segments, rebar_number, angles, width, height)
         else:
             return self._draw_basic_complex_rebar(segments, rebar_number, width, height)
     
-    def _draw_professional_complex_rebar(self, segments, rebar_number, angles=None, width=600, height=180):
+    def _draw_professional_complex_rebar(self, segments, rebar_number, angles=None, width=400, height=220):
         """優化：多段階梯式排列，標註每一段長度，角度標註於折點"""
         fig, ax = plt.subplots(figsize=(width/300, height/300))
         ax.set_aspect('equal')
@@ -425,7 +425,7 @@ class GraphicsManager:
         plt.tight_layout()
         return self._figure_to_base64(fig)
     
-    def _draw_basic_complex_rebar(self, segments, rebar_number, width=600, height=180):
+    def _draw_basic_complex_rebar(self, segments, rebar_number, width=400, height=220):
         """繪製基本複雜鋼筋圖示（保留原有功能）"""
         fig, ax = plt.subplots(figsize=(width/300, height/300))
         
@@ -554,7 +554,7 @@ class GraphicsManager:
         
         return description
 
-    def draw_n_shaped_rebar(self, length1, length2, length3, rebar_number, width=240, height=80):
+    def draw_n_shaped_rebar(self, length1, length2, length3, rebar_number, width=400, height=220):
         """繪製 N 型鋼筋圖示（左上→左中，左中→右中，右中→右下，兩豎線都朝下，橫線水平）"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
@@ -582,14 +582,14 @@ class GraphicsManager:
         plt.tight_layout(pad=0.2)
         return self._figure_to_base64(fig)
 
-    def draw_bent_rebar_diagram(self, angle, length1, length2, rebar_number, width=400, height=160):
+    def draw_bent_rebar_diagram(self, angle, length1, length2, rebar_number, width=400, height=220):
         """繪製折彎鋼筋圖示（工程圖標準：左水平→折點→右水平，標註位置正確，置中顯示）"""
         fig, ax = plt.subplots(figsize=(width/100, height/100))
         ax.set_aspect('equal')
         # 固定顯示長度
         L1 = 120
         L2 = 120
-        margin = 50
+        margin = 70
         # 起點設在左側中間
         x0, y0 = margin, height/2
         # 第一段：水平線
@@ -603,7 +603,6 @@ class GraphicsManager:
         ax.plot([x1, x2], [y1, y2], color='black', linewidth=2.2)
         # 長度標註
         ax.text((x0+x1)/2 - 30, y0-38, f'{int(length1)}', ha='center', va='center', fontsize=12)
-        # 1200 標在第二段線的中心點，y 軸再往下 15 單位
         ax.text((x1+x2)/2 + 10, (y1+y2)/2, f'{int(length2)}', ha='left', va='center', fontsize=12)
         ax.text(x1-18, y1+28, f'{int(angle)}°', ha='center', va='center', fontsize=12)
         ax.axis('off')
@@ -623,7 +622,7 @@ class GraphicsManager:
             return angle, length1, length2
         return None
 
-    def generate_rebar_diagram(self, segments, rebar_number, mode="professional", angles=None, width=600, height=180):
+    def generate_rebar_diagram(self, segments, rebar_number, mode="professional", angles=None, width=400, height=220):
         """
         主要入口函數，根據段數和模式生成對應的鋼筋圖示，支援 angles
         """
