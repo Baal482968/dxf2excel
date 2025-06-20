@@ -4,6 +4,7 @@
 import io
 import base64
 import matplotlib.pyplot as plt
+import numpy as np
 
 def figure_to_base64(fig):
     """將 matplotlib figure 轉換為 base64 字串"""
@@ -14,8 +15,8 @@ def figure_to_base64(fig):
     plt.close(fig)
     return img_str
 
-def draw_dimension_line(ax, start_point, end_point, offset, text, 
-                       horizontal=True, settings=None):
+def draw_dimension_line(ax, start_point, end_point, text, settings, offset=20, 
+                       horizontal=True):
     """繪製專業尺寸標註線"""
     if settings is None:
         raise ValueError("settings must be provided for draw_dimension_line")
@@ -57,5 +58,21 @@ def draw_dimension_line(ax, start_point, end_point, offset, text,
         ax.plot([dim_x, dim_x+arrow_size/2], [y2, y2-arrow_size], color=color, linewidth=1.5)
         # 尺寸文字
         mid_y = (y1 + y2) / 2
-        ax.text(dim_x + 12, mid_y, text, ha='left', va='center',
-               fontsize=font_size, fontweight='bold', color=settings['colors']['text'], rotation=90) 
+        ax.text(dim_x + 8, mid_y, text, ha='left', va='center',
+               fontsize=font_size, fontweight='bold', color=settings['colors']['text'])
+
+def set_plot_limits(ax, margin=20):
+    """根據繪製內容和邊界自動設定圖表範圍"""
+    points = []
+    for line in ax.get_lines():
+        points.extend(line.get_xydata())
+    
+    if not points:
+        return
+
+    points = np.array(points)
+    min_x, min_y = np.min(points, axis=0)
+    max_x, max_y = np.max(points, axis=0)
+
+    ax.set_xlim(min_x - margin, max_x + margin)
+    ax.set_ylim(min_y - margin, max_y + margin) 

@@ -224,6 +224,7 @@ class ExcelWriter:
         rebar_number = rebar.get('raw_text', rebar.get('rebar_number', '#4'))
         segments = self._get_rebar_segments(rebar)
         angles = rebar.get('angles', None)
+        shape_type = rebar.get('type', None) # 取得箍筋類型
         image_path = None
         text_description = ""
         if not self.graphics_available:
@@ -240,7 +241,7 @@ class ExcelWriter:
         try:
             # 傳入 rebar_info
             base64_data, description = quick_draw_rebar(
-                segments, rebar_number
+                segments, rebar_number, shape_type=shape_type
             )
             
             if base64_data:

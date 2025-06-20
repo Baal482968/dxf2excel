@@ -26,6 +26,7 @@ from .shapes import (
     draw_bent_rebar,
     parse_bent_rebar_string,
     draw_complex_rebar,
+    draw_stirrup,
 )
 from .shapes.common import figure_to_base64
 
@@ -50,15 +51,15 @@ class GraphicsManager:
         
         # 專業模式圖形參數
         self.professional_settings = {
-            'line_width': 4,
+            'line_width': 2,
             'font_size': 12,
             'dimension_offset': 25,
             'margin': 30,
             'colors': {
-                'rebar': '#2C3E50',      # 鋼筋顏色（深藍灰）
-                'dimension': '#E74C3C',   # 尺寸線顏色（紅色）
-                'text': '#2C3E50',       # 文字顏色
-                'radius': '#27AE60'      # 半徑標註顏色（綠色）
+                'rebar': '#000000',      # 鋼筋顏色（黑色）
+                'dimension': '#000000',   # 尺寸線顏色（黑色）
+                'text': '#000000',       # 文字顏色 (黑色)
+                'radius': '#000000'      # 半徑標註顏色（黑色）
             }
         }
         
@@ -213,11 +214,18 @@ class GraphicsManager:
         
         return description
 
-    def generate_rebar_diagram(self, segments, rebar_number, mode="professional", angles=None, width=700, height=260):
+    def generate_rebar_diagram(self, segments, rebar_number, mode="professional", angles=None, width=700, height=260, shape_type=None):
         """
-        主要入口函數，根據段數和模式生成對應的鋼筋圖示，支援 angles
+        主要入口函數，根據段數和模式生成對應的鋼筋圖示，支援 angles 和 shape_type
         """
         try:
+            # 箍筋判斷
+            if shape_type and '箍' in shape_type:
+                if len(segments) >= 2:
+                    w, h = segments[0], segments[1]
+                    settings = self.professional_settings if mode == "professional" else self.basic_settings
+                    return draw_stirrup(shape_type, w, h, rebar_number, settings, image_width=width, image_height=height)
+
             # 折彎鋼筋判斷
             if isinstance(rebar_number, str) and rebar_number.startswith('折'):
                 parsed = parse_bent_rebar_string(rebar_number)
@@ -310,7 +318,7 @@ def create_graphics_manager():
     """創建圖形管理器實例"""
     return GraphicsManager()
 
-def quick_draw_rebar(segments, rebar_number="#4", mode="professional"):
+def quick_draw_rebar(segments, rebar_number="#4", mode="professional", shape_type=None):
     """
     快速繪製鋼筋圖示的便利函數
     
@@ -318,6 +326,7 @@ def quick_draw_rebar(segments, rebar_number="#4", mode="professional"):
         segments: 分段長度列表
         rebar_number: 鋼筋編號
         mode: 繪圖模式
+        shape_type: 圖形類型 (例如 '地箍')
     
     Returns:
         tuple: (base64圖片數據, 詳細描述文字)
@@ -331,7 +340,7 @@ def quick_draw_rebar(segments, rebar_number="#4", mode="professional"):
         mode = "ascii"
     
     # 生成圖示
-    image_data = gm.generate_rebar_diagram(segments, rebar_number, mode)
+    image_data = gm.generate_rebar_diagram(segments, rebar_number, mode, shape_type=shape_type)
     
     # 生成描述
     if mode != "ascii":
