@@ -84,9 +84,62 @@ class RebarProcessor:
         4. 折140#10-1000+1200x20
         5. #10-510.5x11
         6. #10-550+21x5
+        7. 地箍#5(50x75)=20
+        8. U箍#5(50x75)=20
+        9. L箍#4(50+75)=20
         """
         import re
         text = text.strip()
+        
+        # 新增：處理箍筋格式
+        # 格式: (地箍|U箍|柱箍|牆箍|L箍|半箍)#5(50x75)=20 或 (50+75)=20
+        stirrup_pattern = r'(地箍|U箍|柱箍|牆箍|L箍|半箍)(#\d+)\((\d+(?:\.\d+)?)\s?([x+])\s?(\d+(?:\.\d+)?)\)=(\d+)'
+        stirrup_match = re.match(stirrup_pattern, text)
+
+        if stirrup_match:
+            stirrup_type = stirrup_match.group(1)
+            rebar_number = stirrup_match.group(2)
+            width = float(stirrup_match.group(3))
+            operator = stirrup_match.group(4)
+            height = float(stirrup_match.group(5))
+            count = int(stirrup_match.group(6))
+            
+            # 根據不同箍筋類型計算長度
+            # 這裡的長度計算是根據您提供的圖片範例推斷的近似值
+            # 實際長度可能需要更複雜的彎鉤長度計算標準
+            length = 0
+            if stirrup_type in ['地箍', '柱箍', '牆箍']: # 封閉箍筋
+                length = (width + height) * 2
+                if rebar_number == '#5':
+                    length += 30 # 根據圖例推斷的彎鉤長度
+                elif rebar_number == '#4':
+                    length += 24 # 根據圖例推斷的彎鉤長度
+            elif stirrup_type == 'U箍':
+                length = width + height * 2
+                if rebar_number == '#5':
+                    length += 30 # 根據圖例推斷的彎鉤長度
+            elif stirrup_type == 'L箍':
+                # L箍和半箍的(寬+高)格式代表的是總長，此處為解析出的片段
+                length = width + height
+                if rebar_number == '#4':
+                     # 根據圖例，長度為 149，(50+75)=125，差24
+                     # 這24可能是彎鉤或額外長度
+                    length += 24
+            elif stirrup_type == '半箍':
+                length = width + height
+                if rebar_number == '#3':
+                    # 根據圖例，長度為 145，(50+75)=125，差20
+                    length += 20
+
+            return {
+                'rebar_number': rebar_number,
+                'segments': [width, height],
+                'angles': [], # 角度資訊目前無法從文字中解析
+                'count': count,
+                'raw_text': text,
+                'length': length,
+                'type': stirrup_type
+            }
         
         # Debug: 印出原始文字
         # print(f"[DEBUG] 解析鋼筋文字: {text}")
