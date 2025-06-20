@@ -5,6 +5,7 @@ CAD 檔案讀取相關功能模組
 import ezdxf
 from utils.helpers import calculate_line_length, calculate_polyline_length
 from core.rebar_processor import RebarProcessor
+from utils.image_ocr import create_image_ocr_processor
 
 class CADReader:
     """CAD 檔案讀取器"""
@@ -13,6 +14,7 @@ class CADReader:
         self.dxf_file = None
         self.modelspace = None
         self.rebar_processor = RebarProcessor()
+        self.image_ocr_processor = create_image_ocr_processor()
     
     def open_file(self, file_path):
         """開啟 DXF 檔案"""
@@ -48,6 +50,20 @@ class CADReader:
         except Exception as e:
             print(f"獲取圖面資訊錯誤: {str(e)}")
             return None
+    
+    def extract_image_numbers(self):
+        """提取圖面中圖片實體的數字"""
+        if not self.modelspace:
+            return []
+        
+        try:
+            print("[DEBUG] 開始提取圖片中的數字...")
+            image_numbers = self.image_ocr_processor.process_dxf_images(self.modelspace)
+            print(f"[DEBUG] 從圖片中提取到 {len(image_numbers)} 個數字")
+            return image_numbers
+        except Exception as e:
+            print(f"提取圖片數字錯誤: {str(e)}")
+            return []
     
     def extract_rebar_texts(self):
         """提取圖面中的鋼筋文字標記"""
