@@ -16,7 +16,7 @@ from PIL import Image as PILImage
 import re
 
 try:
-    from utils.graphics import GraphicsManager
+    from utils.graphics import GraphicsManager, quick_draw_rebar
 except ImportError:
     # 如果找不到原模組，嘗試使用增強版
     try:
@@ -215,7 +215,7 @@ class ExcelWriter:
         if not segments and 'length' in rebar and rebar['length'] > 0:
             segments = [rebar['length']]
         return segments
-    
+
     def _generate_rebar_visual(self, rebar):
         """
         生成鋼筋視覺表示（圖片或文字描述）
@@ -238,13 +238,16 @@ class ExcelWriter:
                 text_description = f"複雜鋼筋 {rebar_number}\n{' + '.join(str(int(s)) for s in segments)}cm"
             return text_description
         try:
-            base64_data = self.graphics_manager.generate_rebar_diagram(
-                segments, rebar_number, "professional", angles
+            # 傳入 rebar_info
+            base64_data, description = quick_draw_rebar(
+                segments, rebar_number
             )
+            
             if base64_data:
                 image_path = self._create_image_from_base64(base64_data)
                 if image_path:
                     return image_path
+            
             # 如果圖片生成失敗，使用文字描述
             if len(segments) == 1:
                 text_description = f"直鋼筋 {rebar_number}\n長度: {int(segments[0])}cm"
@@ -254,18 +257,19 @@ class ExcelWriter:
                 text_description = f"U型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
             else:
                 text_description = f"複雜鋼筋 {rebar_number}\n{' + '.join(str(int(s)) for s in segments)}cm"
+                
             return text_description
         except Exception as e:
             print(f"[ERROR] _generate_rebar_visual 發生錯誤: {str(e)}")
             return f"無法生成專業圖示: {str(e)}"
-    
+
     def write_rebar_data(self, rebar_data, start_row=3):
         """
-        寫入鋼筋資料（支援圖片和文字混合模式）
+        將鋼筋資料寫入工作表，包含圖示和詳細描述
         
         Args:
-            rebar_data: 鋼筋資料列表
-            start_row: 起始行號
+            rebar_data: 包含鋼筋資訊的字典列表
+            start_row: 起始寫入行號
         
         Returns:
             int: 下一個可用行號
@@ -275,14 +279,18 @@ class ExcelWriter:
             # 基本資料
             self.worksheet.cell(row=current_row, column=1).value = idx
             self.worksheet.cell(row=current_row, column=2).value = rebar.get('rebar_number', '')
+            
             # 確保 rebar 資料包含 segments
             if 'segments' not in rebar or not rebar['segments']:
                 rebar['segments'] = self._get_rebar_segments(rebar)
+            
             # 生成鋼筋視覺表示
             text_description = self._generate_rebar_visual(rebar)
+            
             # 圖示欄處理
             diagram_cell = self.worksheet.cell(row=current_row, column=3)
-            if self.image_mode in ["image", "mixed"] and text_description:
+            
+            if self.image_mode in ["image", "mixed"] and text_description and os.path.exists(text_description):
                 try:
                     img = ExcelImage(text_description)
                     img.width = 350
@@ -290,7 +298,6 @@ class ExcelWriter:
                     img.anchor = f'C{current_row}'
                     self.worksheet.add_image(img)
                     diagram_cell.value = ""
-                    self.worksheet.row_dimensions[current_row].height = 400
                     # 確保圖示欄位有足夠的寬度
                     self.worksheet.column_dimensions['C'].width = 60
                 except Exception as e:
@@ -305,12 +312,14 @@ class ExcelWriter:
                     vertical='top', 
                     wrap_text=True
                 )
+            
             # 其他資料欄位
             self.worksheet.cell(row=current_row, column=4).value = rebar.get('length', 0)
             self.worksheet.cell(row=current_row, column=5).value = rebar.get('count', 1)
             self.worksheet.cell(row=current_row, column=6).value = round(rebar.get('weight', 0), 2)
             self.worksheet.cell(row=current_row, column=7).value = rebar.get('note', '')
             self.worksheet.cell(row=current_row, column=8).value = rebar.get('raw_text', '')
+            
             # 設定儲存格樣式
             for col in range(1, 9):
                 cell = self.worksheet.cell(row=current_row, column=col)
@@ -318,15 +327,15 @@ class ExcelWriter:
                     cell.font = self.styles['normal_font']
                     cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = self.styles['border']
-                # 交替行顏色
-                if idx % 2 == 0:
-                    cell.fill = self.styles['light_fill']
+            
             # 調整行高
             if self.image_mode in ["image", "mixed"]:
                 self.worksheet.row_dimensions[current_row].height = 90
             else:
                 self.worksheet.row_dimensions[current_row].height = 60
+            
             current_row += 1
+            
         return current_row
     
     def write_summary(self, rebar_data, start_row):

@@ -5,6 +5,7 @@
 import re
 from config import REBAR_UNIT_WEIGHT, REBAR_DIAMETERS, REBAR_GRADES
 from utils.graphics import GraphicsManager
+from utils.graphics.shapes import parse_bent_rebar_string
 
 class RebarProcessor:
     """鋼筋處理器"""
@@ -163,7 +164,7 @@ class RebarProcessor:
             # 解析號數
             m = re.search(r'#(\d+)', text)
             rebar_no = f"#{m.group(1)}" if m else ""
-            parsed = GraphicsManager()._parse_bent_rebar(text)
+            parsed = parse_bent_rebar_string(text)
             if parsed:
                 angle, length1, length2 = parsed
                 return {
