@@ -220,28 +220,34 @@ class ExcelWriter:
         """
         生成鋼筋視覺表示（圖片或文字描述）
         """
-        # 優先使用 raw_text 作為 rebar_number 傳給 generate_rebar_diagram
         rebar_number = rebar.get('raw_text', rebar.get('rebar_number', '#4'))
         segments = self._get_rebar_segments(rebar)
         angles = rebar.get('angles', None)
         shape_type = rebar.get('type', None) # 取得箍筋類型
+        
+        # 針對箍筋，使用解析後的號數，而不是原始文字
+        if shape_type and '箍' in shape_type:
+            rebar_id = rebar.get('rebar_number', '#4')
+        else:
+            rebar_id = rebar_number
+
         image_path = None
         text_description = ""
         if not self.graphics_available:
             # 圖形功能不可用，生成簡單文字描述
             if len(segments) == 1:
-                text_description = f"直鋼筋 {rebar_number}\n長度: {int(segments[0])}cm"
+                text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
             elif len(segments) == 2:
-                text_description = f"L型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])}cm"
+                text_description = f"L型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])}cm"
             elif len(segments) == 3:
-                text_description = f"U型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
+                text_description = f"U型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
             else:
-                text_description = f"複雜鋼筋 {rebar_number}\n{' + '.join(str(int(s)) for s in segments)}cm"
+                text_description = f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
             return text_description
         try:
             # 傳入 rebar_info
             base64_data, description = quick_draw_rebar(
-                segments, rebar_number, shape_type=shape_type
+                segments, rebar_id, shape_type=shape_type
             )
             
             if base64_data:
@@ -251,13 +257,13 @@ class ExcelWriter:
             
             # 如果圖片生成失敗，使用文字描述
             if len(segments) == 1:
-                text_description = f"直鋼筋 {rebar_number}\n長度: {int(segments[0])}cm"
+                text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
             elif len(segments) == 2:
-                text_description = f"L型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])}cm"
+                text_description = f"L型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])}cm"
             elif len(segments) == 3:
-                text_description = f"U型鋼筋 {rebar_number}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
+                text_description = f"U型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
             else:
-                text_description = f"複雜鋼筋 {rebar_number}\n{' + '.join(str(int(s)) for s in segments)}cm"
+                text_description = f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
                 
             return text_description
         except Exception as e:
