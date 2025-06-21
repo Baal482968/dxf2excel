@@ -6,6 +6,9 @@ import ezdxf
 from utils.helpers import calculate_line_length, calculate_polyline_length
 from core.rebar_processor import RebarProcessor
 from utils.image_ocr import create_image_ocr_processor
+from ezdxf.math import BoundingBox
+from itertools import chain
+import logging
 
 class CADReader:
     """CAD 檔案讀取器"""
@@ -107,14 +110,19 @@ class CADReader:
             return []
         
         rebar_lines = []
+        line_count = 0
+        polyline_count = 0
         
         try:
+            print("[DEBUG] 開始提取線段實體...")
             # 遍歷所有線段實體
             for line in self.modelspace.query('LINE'):
+                line_count += 1
                 length = calculate_line_length(
                     (line.dxf.start.x, line.dxf.start.y),
                     (line.dxf.end.x, line.dxf.end.y)
                 )
+                print(f"[DEBUG][LINE] 線段 {line_count}: 起點({line.dxf.start.x:.2f}, {line.dxf.start.y:.2f}) -> 終點({line.dxf.end.x:.2f}, {line.dxf.end.y:.2f}) 長度={length:.2f}")
                 rebar_lines.append({
                     'type': 'LINE',
                     'start': (line.dxf.start.x, line.dxf.start.y),
@@ -122,15 +130,24 @@ class CADReader:
                     'length': length
                 })
             
+            print(f"[DEBUG] 找到 {line_count} 個線段實體")
+            
+            print("[DEBUG] 開始提取多段線實體...")
             # 遍歷所有多段線實體
             for polyline in self.modelspace.query('LWPOLYLINE'):
+                polyline_count += 1
                 points = [(point[0], point[1]) for point in polyline.get_points()]
                 length = calculate_polyline_length(points)
+                print(f"[DEBUG][POLYLINE] 多段線 {polyline_count}: 點數={len(points)}, 長度={length:.2f}")
+                print(f"[DEBUG][POLYLINE] 點座標: {points}")
                 rebar_lines.append({
                     'type': 'POLYLINE',
                     'points': points,
                     'length': length
                 })
+            
+            print(f"[DEBUG] 找到 {polyline_count} 個多段線實體")
+            print(f"[DEBUG] 總共找到 {len(rebar_lines)} 個線段元件")
         
         except Exception as e:
             print(f"提取鋼筋線段錯誤: {str(e)}")
@@ -174,7 +191,74 @@ class CADReader:
                     associated_lines.append(line)
         
         return associated_lines
-    
+
+    def group_entities(self, tolerance=30.0):
+        """
+        將 DXF 圖面中的實體（線、多段線、文字）根據距離分組。
+        使用 DSU (Disjoint Set Union) 演算法。
+        """
+        if not self.modelspace:
+            return []
+
+        entities = list(self.modelspace.query('LINE LWPOLYLINE TEXT MTEXT'))
+        if not entities:
+            return []
+
+        # 1. 計算每個實體的邊界框
+        entity_bboxes = {}
+        for i, e in enumerate(entities):
+            try:
+                if e.dxftype() in ('LINE', 'LWPOLYLINE'):
+                    points = list(e.vertices())
+                    if points:
+                        entity_bboxes[i] = BoundingBox(points)
+                elif e.dxftype() in ('TEXT', 'MTEXT'):
+                    p1 = e.dxf.insert
+                    h = e.dxf.height
+                    text = e.text if e.dxftype() == 'MTEXT' else e.dxf.text
+                    w = len(text) * h * 0.6  # 估算文字寬度
+                    p2 = p1 + (w, h)
+                    entity_bboxes[i] = BoundingBox([p1, p2])
+            except (AttributeError, ValueError):
+                continue  # 忽略無法計算邊界框的實體
+
+        # 2. DSU 初始化
+        parent = list(range(len(entities)))
+        def find(i):
+            if parent[i] == i:
+                return i
+            parent[i] = find(parent[i])
+            return parent[i]
+
+        def union(i, j):
+            root_i = find(i)
+            root_j = find(j)
+            if root_i != root_j:
+                parent[root_j] = root_i
+
+        # 3. 根據邊界框重疊進行分組
+        entity_indices = list(entity_bboxes.keys())
+        for i in range(len(entity_indices)):
+            for j in range(i + 1, len(entity_indices)):
+                idx1 = entity_indices[i]
+                idx2 = entity_indices[j]
+                
+                bbox1 = entity_bboxes[idx1].copy()
+                bbox1.grow(tolerance)  # 擴大邊界框以尋找鄰近實體
+
+                if bbox1.has_overlap(entity_bboxes[idx2]):
+                    union(idx1, idx2)
+        
+        # 4. 提取分組結果
+        groups = {}
+        for i in entity_indices:
+            root = find(i)
+            if root not in groups:
+                groups[root] = []
+            groups[root].append(entities[i])
+        
+        return list(groups.values())
+
     def get_rebar_tables(self):
         """取得所有 $P- 開頭的 LWPOLYLINE 框線及名稱與多邊形座標"""
         if not self.modelspace:
@@ -209,51 +293,96 @@ class CADReader:
         if not self.modelspace:
             return None
         try:
-            rebar_texts = self.extract_rebar_texts()
-            rebar_lines = self.extract_rebar_lines()
-            tables = self.get_rebar_tables()
-            # 預設分組: {區塊名稱: [rebar list]}
-            grouped = {tb['name']: [] for tb in tables}
-            # 若沒框線，全部歸入 '全部'
-            if not tables:
-                grouped = {'全部': []}
-                tables = [{'name': '全部', 'points': None}]
-            # 處理每個鋼筋文字
-            for rebar_text in rebar_texts:
-                pos = rebar_text.get('position')
-                assigned = False
-                if pos:
-                    x, y = pos[0], pos[1]
-                    for tb in tables:
-                        if tb['points'] and self.point_in_polygon(x, y, tb['points']):
-                            assigned = True
-                            target_name = tb['name']
-                            break
-                    else:
-                        target_name = tables[0]['name']  # 若沒命中，歸第一個
-                else:
-                    target_name = tables[0]['name']
-                associated_lines = self.find_associated_lines(rebar_text, rebar_lines)
-                segments = rebar_text.get('segments', [])
-                if segments:
-                    total_length = sum(segments)
-                else:
-                    total_length = sum(line['length'] for line in associated_lines)
-                rebar_entry = dict(rebar_text)
-                rebar_entry.update({
-                    'diameter': self.rebar_processor.get_rebar_diameter(rebar_entry['rebar_number']),
-                    'unit_weight': self.rebar_processor.get_rebar_unit_weight(rebar_entry['rebar_number']),
-                    'grade': self.rebar_processor.get_rebar_grade(rebar_entry['rebar_number']),
-                    'length': round(total_length),
-                    'weight': round(self.rebar_processor.calculate_rebar_weight(
-                        rebar_entry['rebar_number'],
-                        total_length
-                    )),
-                    'position': rebar_text.get('position'),
-                    'associated_lines': associated_lines,
+            print("[DEBUG] ===== 開始處理圖面 =====")
+            
+            # 使用新的分組邏輯
+            print("[DEBUG] 1. 根據實體位置進行分組...")
+            entity_groups = self.group_entities()
+            print(f"[DEBUG] 找到 {len(entity_groups)} 個實體群組")
+
+            drawings = []
+            for i, group in enumerate(entity_groups):
+                rebar_number = ''
+                count = 1
+                found_count_text = False
+                other_texts = []
+                geometric_entities = []
+
+                # 1. 將群組內的實體分類，並解析文字內容
+                for e in group:
+                    if e.dxftype() in ('TEXT', 'MTEXT'):
+                        text = (e.text if e.dxftype() == 'MTEXT' else e.dxf.text).strip()
+                        if not text:
+                            continue
+                        
+                        # 檢查是否為鋼筋號數 (e.g., #4)
+                        if text.startswith('#') and text[1:].isdigit():
+                            rebar_number = text
+                        # 檢查是否為數量 (e.g., x10)
+                        elif text.lower().startswith('x') and text[1:].isdigit():
+                            count = int(text[1:])
+                            found_count_text = True
+                        else:
+                            other_texts.append(text)
+                    elif e.dxftype() in ('LINE', 'LWPOLYLINE'):
+                        geometric_entities.append(e)
+
+                # 如果群組中沒有任何線條，可能只是游離的文字，跳過此群組
+                if not geometric_entities:
+                    continue
+
+                # 組合原始文字和備註
+                # 如果沒有解析到鋼筋號數，則使用預設名稱
+                display_rebar_number = rebar_number if rebar_number else f"圖形 {i+1}"
+                
+                note = ' '.join(other_texts)
+                
+                raw_text_parts = [rebar_number]
+                if found_count_text:
+                    raw_text_parts.append(f'x{count}')
+                raw_text_parts.append(note)
+                
+                raw_text = ' '.join(filter(None, raw_text_parts))
+
+                # 計算總長度
+                total_length = 0
+                for e in geometric_entities:
+                    if e.dxftype() == 'LINE':
+                        total_length += e.dxf.start.distance(e.dxf.end)
+                    elif e.dxftype() == 'LWPOLYLINE':
+                        points = [(p[0], p[1]) for p in e.get_points()]
+                        total_length += calculate_polyline_length(points)
+
+                drawings.append({
+                    'rebar_number': display_rebar_number,
+                    'count': count,
+                    'note': note,
+                    'length': round(total_length) if total_length > 0 else 0,
+                    'weight': '',
+                    'raw_text': raw_text.strip(),
+                    'entities_to_draw': group, # 將整個群組傳遞給繪圖器
                 })
-                grouped[target_name].append(rebar_entry)
+
+            print("[DEBUG] 2. 提取表格框線...")
+            tables = self.get_rebar_tables()
+            print(f"[DEBUG] 找到 {len(tables)} 個表格框線")
+            
+            # 將所有圖形放入分組
+            grouped = {tb['name']: [] for tb in tables}
+            if not tables:
+                print("[DEBUG] 沒有找到表格框線，使用預設分組 '全部'")
+                grouped = {'全部': drawings}
+            else:
+                # 這裡可以實作更複雜的邏輯，判斷每個群組屬於哪個表格
+                # 目前為簡化，全放入第一個表格
+                grouped[tables[0]['name']] = drawings
+            
+            print("[DEBUG] ===== 處理完成 =====")
+            for group_name, items in grouped.items():
+                print(f"[DEBUG] 分組 '{group_name}': {len(items)} 個圖形")
+            
             return grouped
+            
         except Exception as e:
-            print(f"處理圖面錯誤: {str(e)}")
+            logging.error(f"處理圖面錯誤: {e}", exc_info=True)
             return None 

@@ -92,12 +92,15 @@ class RebarProcessor:
         import re
         text = text.strip()
         
+        print(f"[DEBUG][PARSE] 嘗試解析文字: '{text}'")
+        
         # 新增：處理箍筋格式
         # 格式: (地箍|U箍|柱箍|牆箍|L箍|半箍)#5(50x75)=20 或 (50+75)=20
         stirrup_pattern = r'(地箍|U箍|柱箍|牆箍|L箍|半箍)(#\d+)\((\d+(?:\.\d+)?)\s?([x+])\s?(\d+(?:\.\d+)?)\)=(\d+)'
         stirrup_match = re.match(stirrup_pattern, text)
 
         if stirrup_match:
+            print(f"[DEBUG][PARSE] 匹配到箍筋格式: {text}")
             stirrup_type = stirrup_match.group(1)
             rebar_number = stirrup_match.group(2)
             width = float(stirrup_match.group(3))
@@ -142,9 +145,6 @@ class RebarProcessor:
                 'type': stirrup_type
             }
         
-        # Debug: 印出原始文字
-        # print(f"[DEBUG] 解析鋼筋文字: {text}")
-        
         # 解析角度（如「折135度」「135°」）
         angles = []
         angle_match = re.search(r'(?:折)?(\d{2,3})[°度]', text)
@@ -152,7 +152,7 @@ class RebarProcessor:
             try:
                 angle = int(angle_match.group(1))
                 angles.append(angle)
-                # print(f"[DEBUG] 解析到角度: {angle}°")
+                print(f"[DEBUG][PARSE] 解析到角度: {angle}°")
             except:
                 pass
         
@@ -161,12 +161,14 @@ class RebarProcessor:
         
         # 支援折開頭格式
         if text.startswith('折'):
+            print(f"[DEBUG][PARSE] 嘗試解析折開頭格式: {text}")
             # 解析號數
             m = re.search(r'#(\d+)', text)
             rebar_no = f"#{m.group(1)}" if m else ""
             parsed = parse_bent_rebar_string(text)
             if parsed:
                 angle, length1, length2 = parsed
+                print(f"[DEBUG][PARSE] 成功解析折開頭格式: 角度={angle}, 長度1={length1}, 長度2={length2}")
                 return {
                     'rebar_number': rebar_no,
                     'segments': [length1, length2],
@@ -180,6 +182,7 @@ class RebarProcessor:
         pattern = r'(N#|#)(\d+)-([\d\.]+(?:\+[\d\.]+)*)x(\d+)'
         m = re.match(pattern, text, re.IGNORECASE)
         if m:
+            print(f"[DEBUG][PARSE] 匹配到標準格式: {text}")
             number = f"{m.group(1)}{m.group(2)}"  # 保留 N# 或 #
             segments_str = m.group(3)
             count = int(m.group(4))
@@ -195,6 +198,7 @@ class RebarProcessor:
                     continue
             # 確保 segments 不為空
             if not segments:
+                print(f"[DEBUG][PARSE] 分段解析失敗: {segments_str}")
                 return None
             result = {
                 'rebar_number': number,
@@ -204,9 +208,10 @@ class RebarProcessor:
                 'raw_text': text,
                 'length': sum(segments)
             }
+            print(f"[DEBUG][PARSE] 成功解析: {result}")
             return result
             
-        # print(f"[DEBUG] 無法解析鋼筋文字格式: {text}")
+        print(f"[DEBUG][PARSE] 無法解析鋼筋文字格式: {text}")
         return None
 
     @staticmethod
