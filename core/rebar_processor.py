@@ -142,6 +142,28 @@ class RebarProcessor:
                 'type': stirrup_type
             }
         
+        # 新增：處理繫筋格式
+        # 格式: (柱繫|梁繫|牆繫)#5-3000x20
+        tie_pattern = r'(柱繫|梁繫|牆繫)(#\d+)-([\d\.]+?)x(\d+)'
+        tie_match = re.match(tie_pattern, text)
+
+        if tie_match:
+            tie_type = tie_match.group(1)
+            rebar_number = tie_match.group(2)
+            length = float(tie_match.group(3))
+            count = int(tie_match.group(4))
+
+            return {
+                'rebar_number': rebar_number,
+                'segments': [length],
+                'angles': [],
+                'count': count,
+                'raw_text': text,
+                'length': length,
+                'type': tie_type,
+                'note': tie_type # 在備註中也標明類型
+            }
+        
         # Debug: 印出原始文字
         # print(f"[DEBUG] 解析鋼筋文字: {text}")
         
