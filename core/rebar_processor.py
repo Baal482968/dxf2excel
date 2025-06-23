@@ -164,6 +164,29 @@ class RebarProcessor:
                 'note': tie_type # 在備註中也標明類型
             }
         
+        # 新增：處理「安」筋格式
+        # 格式: 安#5-3000x20 or 安#5-25+1000x20
+        anchor_pattern = r'(安)(#\d+)-([\d\.]+(?:\+[\d\.]+)*)x(\d+)'
+        anchor_match = re.match(anchor_pattern, text)
+
+        if anchor_match:
+            anchor_type = anchor_match.group(1)
+            rebar_number = anchor_match.group(2)
+            segments_str = anchor_match.group(3)
+            count = int(anchor_match.group(4))
+            segments = [float(x) if '.' in x else int(x) for x in segments_str.split('+')]
+
+            return {
+                'rebar_number': rebar_number,
+                'segments': segments,
+                'angles': [],
+                'count': count,
+                'raw_text': text,
+                'length': sum(segments),
+                'type': anchor_type,
+                'note': anchor_type
+            }
+
         # Debug: 印出原始文字
         # print(f"[DEBUG] 解析鋼筋文字: {text}")
         
