@@ -128,16 +128,19 @@ class ExcelWriter:
     
     def write_header(self, start_row=2):
         """寫入表頭，可指定起始 row"""
-        if self.image_mode in ["image", "mixed"]:
+        headers = [
+            "編號", "號數", "A(cm)", "B(cm)", "C(cm)", "D(cm)", "E(cm)", "F(cm)", "G(cm)", 
+            "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
+        ]
+        column_widths = [8, 8, 8, 8, 8, 8, 8, 8, 8, 60, 12, 8, 12, 20, 45]
+        
+        if self.image_mode == "text":
             headers = [
-                "編號", "號數", "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
+                "編號", "號數", "A(cm)", "B(cm)", "C(cm)", "D(cm)", "E(cm)", "F(cm)", "G(cm)", 
+                "圖示描述", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
             ]
-            column_widths = [8, 10, 60, 12, 8, 12, 20, 45]
-        else:
-            headers = [
-                "編號", "號數", "圖示描述", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
-            ]
-            column_widths = [8, 10, 40, 12, 8, 12, 20, 45]
+            column_widths = [8, 8, 8, 8, 8, 8, 8, 8, 8, 40, 12, 8, 12, 20, 45]
+
         for col, header in enumerate(headers, 1):
             cell = self.worksheet.cell(row=start_row, column=col)
             cell.value = header
@@ -151,7 +154,7 @@ class ExcelWriter:
     def write_title(self, title, subtitle=None):
         """寫入標題和副標題"""
         # 主標題
-        self.worksheet.merge_cells('A1:H1')
+        self.worksheet.merge_cells('A1:O1')
         cell = self.worksheet.cell(row=1, column=1)
         cell.value = title
         cell.font = self.styles['title_font']
@@ -160,7 +163,7 @@ class ExcelWriter:
         
         # 副標題（如果提供）
         if subtitle:
-            self.worksheet.merge_cells('A2:H2')
+            self.worksheet.merge_cells('A2:O2')
             cell = self.worksheet.cell(row=2, column=1)
             cell.value = subtitle
             cell.font = self.styles['normal_font']
@@ -290,23 +293,29 @@ class ExcelWriter:
             # 確保 rebar 資料包含 segments
             if 'segments' not in rebar or not rebar['segments']:
                 rebar['segments'] = self._get_rebar_segments(rebar)
+
+            # 寫入 A-G 欄位
+            segments = rebar.get('segments', [])
+            for i, segment in enumerate(segments):
+                if i < 7: # 最多寫入 7 個分段
+                    self.worksheet.cell(row=current_row, column=3 + i).value = segment
             
             # 生成鋼筋視覺表示
             text_description = self._generate_rebar_visual(rebar)
             
             # 圖示欄處理
-            diagram_cell = self.worksheet.cell(row=current_row, column=3)
+            diagram_cell = self.worksheet.cell(row=current_row, column=10) # 圖示在第10欄
             
             if self.image_mode in ["image", "mixed"] and text_description and os.path.exists(text_description):
                 try:
                     img = ExcelImage(text_description)
                     img.width = 350
                     img.height = 120
-                    img.anchor = f'C{current_row}'
+                    img.anchor = f'J{current_row}' # J is column 10
                     self.worksheet.add_image(img)
                     diagram_cell.value = ""
                     # 確保圖示欄位有足夠的寬度
-                    self.worksheet.column_dimensions['C'].width = 60
+                    self.worksheet.column_dimensions['J'].width = 60
                 except Exception as e:
                     print(f"⚠️ 圖片嵌入失敗: {e}")
                     diagram_cell.value = "(圖示生成失敗)"
@@ -321,16 +330,16 @@ class ExcelWriter:
                 )
             
             # 其他資料欄位
-            self.worksheet.cell(row=current_row, column=4).value = rebar.get('length', 0)
-            self.worksheet.cell(row=current_row, column=5).value = rebar.get('count', 1)
-            self.worksheet.cell(row=current_row, column=6).value = round(rebar.get('weight', 0), 2)
-            self.worksheet.cell(row=current_row, column=7).value = rebar.get('note', '')
-            self.worksheet.cell(row=current_row, column=8).value = rebar.get('raw_text', '')
+            self.worksheet.cell(row=current_row, column=11).value = round(rebar.get('length', 0), 1)
+            self.worksheet.cell(row=current_row, column=12).value = rebar.get('count', 1)
+            self.worksheet.cell(row=current_row, column=13).value = round(rebar.get('weight', 0), 1)
+            self.worksheet.cell(row=current_row, column=14).value = rebar.get('note', '')
+            self.worksheet.cell(row=current_row, column=15).value = rebar.get('raw_text', '')
             
             # 設定儲存格樣式
-            for col in range(1, 9):
+            for col in range(1, 16):
                 cell = self.worksheet.cell(row=current_row, column=col)
-                if col != 3:  # 圖示欄已單獨處理
+                if col != 10:  # 圖示欄已單獨處理
                     cell.font = self.styles['normal_font']
                     cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = self.styles['border']
@@ -366,7 +375,7 @@ class ExcelWriter:
         
         # 寫入摘要標題
         summary_row = start_row + 1
-        self.worksheet.merge_cells(f'A{summary_row}:H{summary_row}')
+        self.worksheet.merge_cells(f'A{summary_row}:O{summary_row}')
         cell = self.worksheet.cell(row=summary_row, column=1)
         cell.value = "統計摘要"
         cell.font = Font(name='Calibri', size=12, bold=True)
@@ -378,8 +387,8 @@ class ExcelWriter:
         summary_row += 1
         summary_data = [
             ("總數量", f"{total_count} 支"),
-            ("總重量", f"{total_weight:.2f} kg"),
-            ("總長度", f"{total_length:.0f} cm"),
+            ("總重量", f"{total_weight:.1f} kg"),
+            ("總長度", f"{total_length:.1f} cm"),
             ("鋼筋類型", f"{len(rebar_types)} 種")
         ]
         
@@ -404,7 +413,7 @@ class ExcelWriter:
     def write_footer(self, row):
         """寫入頁尾"""
         # 生成時間
-        self.worksheet.merge_cells(f'A{row}:H{row}')
+        self.worksheet.merge_cells(f'A{row}:O{row}')
         cell = self.worksheet.cell(row=row, column=1)
         
         # 添加模式資訊
