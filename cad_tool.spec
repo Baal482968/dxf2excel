@@ -9,6 +9,9 @@ a = Analysis(
     datas=[
         ('assets', 'assets'),
         ('config.py', '.'),
+        ('utils', 'utils'),
+        ('core', 'core'),
+        ('ui', 'ui'),
     ],
     hiddenimports=[
         'pandas',
@@ -16,6 +19,18 @@ a = Analysis(
         'openpyxl',
         'matplotlib',
         'PIL',
+        'tkinter',
+        'tkinter.messagebox',
+        'tkinter.filedialog',
+        'tkinter.ttk',
+        'utils.helpers',
+        'utils.graphics',
+        'core.rebar_processor',
+        'core.excel_writer',
+        'core.cad_reader',
+        'core.dxf_parser',
+        'ui.main_window',
+        'ui.styles',
     ],
     hookspath=[],
     hooksconfig={},
@@ -45,7 +60,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icon.ico'  # 如果您有圖示檔案的話
+    # icon='assets/icon.ico'  # 暫時註解掉，因為檔案不存在
 )
 
 coll = COLLECT(
