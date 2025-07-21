@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <line x1="61.06" y1="162.23" x2="186.42" y2="162.23" stroke="#000000" stroke-width="1.0" stroke-linecap="round"/>
+  <path d="M669.71,311.61 L650.16,292.06 L631.28,299.88 L631.28,426.71 L642.34,437.77 L738.94,437.77 L750.00,426.71 L750.00,299.88 L738.94,288.82 L642.34,288.82 L634.52,307.70 L654.07,327.25" stroke="#000000" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <line x1="50.00" y1="173.29" x2="50.00" y2="213.49" stroke="#000000" stroke-width="1.0" stroke-linecap="round"/>
+  <line x1="61.06" y1="224.55" x2="186.42" y2="224.55" stroke="#000000" stroke-width="1.0" stroke-linecap="round"/>
+  <line x1="197.48" y1="173.29" x2="197.48" y2="213.49" stroke="#000000" stroke-width="1.0" stroke-linecap="round"/>
+  <path d="M61.06,162.23 L58.90,162.44 L56.83,163.07 L54.92,164.09 L53.24,165.47 L51.86,167.14 L50.84,169.06 L50.21,171.13 L50.00,173.29" stroke="#000000" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M197.48,173.29 L197.27,171.13 L196.64,169.06 L195.62,167.14 L194.24,165.47 L192.56,164.09 L190.65,163.07 L188.58,162.44 L186.42,162.23" stroke="#000000" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M186.42,224.55 L188.58,224.34 L190.65,223.71 L192.56,222.68 L194.24,221.31 L195.62,219.63 L196.64,217.72 L197.27,215.64 L197.48,213.49" stroke="#000000" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M50.00,213.49 L50.21,215.64 L50.84,217.72 L51.86,219.63 L53.24,221.31 L54.92,222.68 L56.83,223.71 L58.90,224.34 L61.06,224.55" stroke="#000000" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M72.12,173.29 L71.91,171.13 L71.28,169.06 L70.26,167.14 L68.88,165.47 L67.21,164.09 L65.29,163.07 L63.22,162.44 L61.06,162.23" stroke="#000000" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <line x1="72.12" y1="173.29" x2="72.12" y2="198.33" stroke="#000000" stroke-width="1.0" stroke-linecap="round"/>
+</svg>
