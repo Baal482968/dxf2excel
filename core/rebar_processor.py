@@ -4,8 +4,7 @@
 
 import re
 from config import REBAR_UNIT_WEIGHT, REBAR_DIAMETERS, REBAR_GRADES
-from utils.graphics import GraphicsManager
-from utils.graphics.shapes import parse_bent_rebar_string
+# 圖形相關模組已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
 
 class RebarProcessor:
     """鋼筋處理器"""
@@ -214,17 +213,8 @@ class RebarProcessor:
             # 解析號數
             m = re.search(r'#(\d+)', text)
             rebar_no = f"#{m.group(1)}" if m else ""
-            parsed = parse_bent_rebar_string(text)
-            if parsed:
-                angle, length1, length2 = parsed
-                return {
-                    'rebar_number': rebar_no,
-                    'segments': [length1, length2],
-                    'angles': [angle],
-                    'count': 1,
-                    'raw_text': text,
-                    'length': length1 + length2
-                }
+            # 彎曲鋼筋解析功能已移除，暫時跳過處理
+            pass
         
         # 強化正則：支援 N# 或 # 開頭
         pattern = r'(N#|#)(\d+)-([\d\.]+(?:\+[\d\.]+)*)x(\d+)'

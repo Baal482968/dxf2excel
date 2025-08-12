@@ -17,14 +17,14 @@ a = Analysis(
         'pandas',
         'ezdxf',
         'openpyxl',
-        'matplotlib',
-        'PIL',
+        # 'matplotlib',  # 已移除
+        # 'PIL',  # 已移除
         'tkinter',
         'tkinter.messagebox',
         'tkinter.filedialog',
         'tkinter.ttk',
         'utils.helpers',
-        'utils.graphics',
+        # 'utils.graphics',  # 已移除
         'core.rebar_processor',
         'core.excel_writer',
         'core.cad_reader',

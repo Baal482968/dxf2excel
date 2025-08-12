@@ -6,24 +6,17 @@ Excel 輸出相關功能模組 - 增強版
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
-from openpyxl.drawing.image import Image as ExcelImage
+# ExcelImage 已移除，改為純文字模式
 from datetime import datetime
-import tempfile
-import base64
+# tempfile 模組已移除
+# base64 模組已移除
 import os
-import io
-from PIL import Image as PILImage
+# io 模組已移除
+# PIL 圖片處理已移除
 import re
 
-try:
-    from utils.graphics import GraphicsManager, quick_draw_rebar
-except ImportError:
-    # 如果找不到原模組，嘗試使用增強版
-    try:
-        from graphics_manager import GraphicsManager
-    except ImportError:
-        GraphicsManager = None
-        print("⚠️ 警告: 找不到圖形管理器，將使用純文字模式")
+# 圖形相關模組已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
+GraphicsManager = None
 
 class ExcelWriter:
     """Excel 檔案寫入器 - 增強版"""
@@ -41,30 +34,11 @@ class ExcelWriter:
         """
         self.workbook = None
         self.worksheet = None
-        self.temp_image_files = []
+        # 暫存圖片檔案列表已移除
         self.image_mode = image_mode
         
-        # 初始化圖形管理器
-        self.graphics_manager = None
-        if GraphicsManager:
-            try:
-                self.graphics_manager = GraphicsManager()
-                self.graphics_available = True
-                
-                # 檢查圖形依賴
-                if hasattr(self.graphics_manager, 'check_dependencies'):
-                    deps_ok, missing = self.graphics_manager.check_dependencies()
-                    if not deps_ok:
-                        print(f"⚠️ 圖形套件缺失: {missing}")
-                        self.graphics_available = False
-                else:
-                    self.graphics_available = True
-                    
-            except Exception as e:
-                print(f"⚠️ 圖形管理器初始化失敗: {e}")
-                self.graphics_available = False
-        else:
-            self.graphics_available = False
+        # 圖形管理器已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
+        self.graphics_available = False
         
         # 根據可用性調整模式
         if self.image_mode == "auto":
@@ -117,14 +91,9 @@ class ExcelWriter:
         self._cleanup_temp_files()
     
     def _cleanup_temp_files(self):
-        """清理暫存檔案"""
-        for temp_file in self.temp_image_files:
-            try:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-            except Exception as e:
-                print(f"⚠️ 無法刪除暫存檔 {temp_file}: {e}")
-        self.temp_image_files = []
+        """清理暫存檔案 - 已簡化"""
+        # 暫存檔案清理功能已移除
+        pass
     
     def write_header(self, start_row=2):
         """寫入表頭，可指定起始 row"""
@@ -132,14 +101,7 @@ class ExcelWriter:
             "編號", "號數", "A(cm)", "B(cm)", "C(cm)", "D(cm)", "E(cm)", "F(cm)", "G(cm)", 
             "圖示", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
         ]
-        column_widths = [8, 8, 8, 8, 8, 8, 8, 8, 8, 60, 12, 8, 12, 20, 45]
-        
-        if self.image_mode == "text":
-            headers = [
-                "編號", "號數", "A(cm)", "B(cm)", "C(cm)", "D(cm)", "E(cm)", "F(cm)", "G(cm)", 
-                "圖示描述", "長度(cm)", "數量", "重量(kg)", "備註", "讀取CAD文字"
-            ]
-            column_widths = [8, 8, 8, 8, 8, 8, 8, 8, 8, 40, 12, 8, 12, 20, 45]
+        column_widths = [8, 8, 8, 8, 8, 8, 8, 8, 8, 20, 12, 8, 12, 20, 45]
 
         for col, header in enumerate(headers, 1):
             cell = self.worksheet.cell(row=start_row, column=col)
@@ -175,26 +137,7 @@ class ExcelWriter:
         
         return 2
     
-    def _create_image_from_base64(self, base64_data, target_width=360, target_height=180):
-        """
-        從 base64 數據創建圖片檔案
-        """
-        try:
-            # 嘗試解碼 base64 數據
-            image_data = base64.b64decode(base64_data)
-            # 使用 PIL 處理圖片
-            image = PILImage.open(io.BytesIO(image_data))
-            # 調整圖片大小
-            image = image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
-            # 創建暫存檔案
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-                image.save(tmp, format='PNG')
-                temp_path = tmp.name
-                self.temp_image_files.append(temp_path)
-                return temp_path
-        except Exception as e:
-            print(f"⚠️ 圖片處理失敗: {e}，內容預覽: {str(base64_data)[:40]}")
-            return None
+    # 圖片處理方法已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
     
     def _get_rebar_segments(self, rebar):
         """從鋼筋資料中提取分段長度"""
@@ -247,31 +190,18 @@ class ExcelWriter:
             else:
                 text_description = f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
             return text_description
-        try:
-            # 傳入 rebar_info
-            base64_data, description = quick_draw_rebar(
-                segments, rebar_id, shape_type=shape_type
-            )
+        # 圖示生成功能已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
+        # 根據鋼筋類型生成文字描述
+        if len(segments) == 1:
+            text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
+        elif len(segments) == 2:
+            text_description = f"L型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])}cm"
+        elif len(segments) == 3:
+            text_description = f"U型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
+        else:
+            text_description = f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
             
-            if base64_data:
-                image_path = self._create_image_from_base64(base64_data)
-                if image_path:
-                    return image_path
-            
-            # 如果圖片生成失敗，使用文字描述
-            if len(segments) == 1:
-                text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
-            elif len(segments) == 2:
-                text_description = f"L型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])}cm"
-            elif len(segments) == 3:
-                text_description = f"U型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
-            else:
-                text_description = f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
-                
-            return text_description
-        except Exception as e:
-            print(f"[ERROR] _generate_rebar_visual 發生錯誤: {str(e)}")
-            return f"無法生成專業圖示: {str(e)}"
+        return text_description
 
     def write_rebar_data(self, rebar_data, start_row=3):
         """
@@ -303,31 +233,9 @@ class ExcelWriter:
             # 生成鋼筋視覺表示
             text_description = self._generate_rebar_visual(rebar)
             
-            # 圖示欄處理
+            # 圖示欄處理 - 現階段留空，等 assets/materials 圖片準備好時再實作
             diagram_cell = self.worksheet.cell(row=current_row, column=10) # 圖示在第10欄
-            
-            if self.image_mode in ["image", "mixed"] and text_description and os.path.exists(text_description):
-                try:
-                    img = ExcelImage(text_description)
-                    img.width = 350
-                    img.height = 120
-                    img.anchor = f'J{current_row}' # J is column 10
-                    self.worksheet.add_image(img)
-                    diagram_cell.value = ""
-                    # 確保圖示欄位有足夠的寬度
-                    self.worksheet.column_dimensions['J'].width = 60
-                except Exception as e:
-                    print(f"⚠️ 圖片嵌入失敗: {e}")
-                    diagram_cell.value = "(圖示生成失敗)"
-            else:
-                # 純文字模式
-                diagram_cell.value = text_description
-                diagram_cell.font = self.styles['description_font']
-                diagram_cell.alignment = Alignment(
-                    horizontal='left', 
-                    vertical='top', 
-                    wrap_text=True
-                )
+            diagram_cell.value = ""  # 暫時留空
             
             # 其他資料欄位
             self.worksheet.cell(row=current_row, column=11).value = round(rebar.get('length', 0), 1)
@@ -344,11 +252,8 @@ class ExcelWriter:
                     cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = self.styles['border']
             
-            # 調整行高
-            if self.image_mode in ["image", "mixed"]:
-                self.worksheet.row_dimensions[current_row].height = 90
-            else:
-                self.worksheet.row_dimensions[current_row].height = 60
+            # 調整行高 - 圖片模式已移除，統一使用文字模式行高
+            self.worksheet.row_dimensions[current_row].height = 60
             
             current_row += 1
             
@@ -416,16 +321,9 @@ class ExcelWriter:
         self.worksheet.merge_cells(f'A{row}:O{row}')
         cell = self.worksheet.cell(row=row, column=1)
         
-        # 添加模式資訊
-        mode_info = {
-            "image": "圖片模式",
-            "text": "文字模式", 
-            "mixed": "圖文混合模式"
-        }
-        
+        # 模式資訊 - 圖示功能暫時停用
         cell.value = (f"生成時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-                     f"圖示模式：{mode_info.get(self.image_mode, self.image_mode)} | "
-                     f"圖形功能：{'啟用' if self.graphics_available else '未啟用'}")
+                     f"圖示功能：暫時停用，等 assets/materials 圖片準備好時再實作")
         cell.font = self.styles['small_font']
         cell.alignment = Alignment(horizontal='right', vertical='center')
         cell.border = self.styles['border']

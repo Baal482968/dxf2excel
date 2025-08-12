@@ -11,7 +11,7 @@ from ui.styles import StyleManager, ModernButton, CardFrame, ModernEntry, Modern
 from core.cad_reader import CADReader
 from core.excel_writer import ExcelWriter
 from utils.helpers import get_file_info, create_progress_tracker, update_progress
-from utils.graphics import GraphicsManager
+# 圖形相關模組已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
 
 class MainWindow:
     """主視窗類別"""
@@ -26,7 +26,7 @@ class MainWindow:
         # 初始化元件
         self.cad_reader = CADReader()
         self.excel_writer = ExcelWriter()
-        self.graphics_manager = GraphicsManager()
+        # 圖形管理器已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
         
         # 初始化變數
         self.cad_file_path = tk.StringVar()
@@ -200,18 +200,8 @@ class MainWindow:
             messagebox.showerror("錯誤", "請選擇 Excel 檔案")
             return
         
-        # 檢查圖形功能
-        if not self.graphics_manager.check_dependencies():
-            if not messagebox.askyesno(
-                "缺少套件",
-                "缺少圖形繪製所需的套件，是否要自動安裝？"
-            ):
-                return
-            
-            # 自動安裝套件
-            if not self.graphics_manager.install_dependencies():
-                messagebox.showerror("錯誤", "安裝套件失敗，請手動安裝")
-                return
+        # 圖形功能檢查 - 已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
+        # 暫時跳過圖形功能檢查
         
         # 建立進度追蹤器
         self.progress_tracker = create_progress_tracker(5)
