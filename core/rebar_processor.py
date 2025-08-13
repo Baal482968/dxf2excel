@@ -75,10 +75,11 @@ class RebarProcessor:
     @staticmethod
     def parse_rebar_text(text):
         """
-        解析 type10 直料鋼筋格式
+        解析鋼筋文字格式
         
         支援格式：
-        - #3-700x99 (單段直料)
+        - #3-700x99 (type10 單段直料)
+        - 安#3-390x40 (type11 安全彎鉤直)
         """
         import re
         text = text.strip()
@@ -107,6 +108,32 @@ class RebarProcessor:
                 'weight': weight,
                 'type': 'type10',
                 'note': '直料'
+            }
+        
+        # 處理 type11 安全彎鉤直鋼筋格式
+        # 格式: 安#3-390x40 (安全彎鉤直)
+        type11_pattern = r'安(#\d+)-([\d\.]+)x(\d+)'
+        type11_match = re.match(type11_pattern, text)
+
+        if type11_match:
+            rebar_number = type11_match.group(1)
+            length = float(type11_match.group(2))
+            count = int(type11_match.group(3))
+            
+            # 計算重量
+            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
+            weight = unit_weight * length * count / 100  # 轉換為 kg
+
+            return {
+                'rebar_number': rebar_number,
+                'segments': [length],
+                'angles': [],
+                'count': count,
+                'raw_text': text,
+                'length': length,
+                'weight': weight,
+                'type': 'type11',
+                'note': '安全彎鉤直'
             }
         
         # 無法解析的格式

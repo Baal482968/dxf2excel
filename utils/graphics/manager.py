@@ -58,6 +58,34 @@ class GraphicsManager:
         except Exception as e:
             print(f"❌ 生成 type10 鋼筋圖片失敗: {e}")
             return None
+
+    def generate_type11_rebar_image(self, length, rebar_number, output_path=None):
+        """生成 type11 鋼筋（安全彎鉤直）圖片"""
+        try:
+            # 尋找 type11 材料
+            type11_material = None
+            for material in self.available_materials:
+                if material.startswith("11-"):
+                    type11_material = material
+                    break
+            
+            if not type11_material:
+                print(f"❌ 找不到 type11 材料")
+                return None
+            
+            # 構建 SVG 檔案路徑
+            svg_path = self.materials_dir / type11_material / "graphic-material.svg"
+            
+            if not svg_path.exists():
+                print(f"❌ SVG 檔案不存在: {svg_path}")
+                return None
+            
+            # 解析 SVG 並生成圖片
+            return self._create_type11_rebar_image_from_svg(svg_path, length, rebar_number)
+            
+        except Exception as e:
+            print(f"❌ 生成 type11 鋼筋圖片失敗: {e}")
+            return None
     
     def _create_type10_rebar_image_from_svg(self, svg_path, length, rebar_number):
         """從 SVG 創建 type10 鋼筋圖片"""
@@ -116,6 +144,90 @@ class GraphicsManager:
             
         except Exception as e:
             print(f"❌ 從 SVG 創建圖片失敗: {e}")
+            return None
+
+    def _create_type11_rebar_image_from_svg(self, svg_path, length, rebar_number):
+        """從 SVG 創建 type11 鋼筋（安全彎鉤直）圖片"""
+        try:
+            # 解析 SVG
+            tree = ET.parse(svg_path)
+            root = tree.getroot()
+            
+            # 創建圖片 - 更大的尺寸以支援標註文字
+            img_width = 1200
+            img_height = 800  # 增加高度以容納上方標註
+            image = Image.new('RGB', (img_width, img_height), color='white')
+            draw = ImageDraw.Draw(image)
+            
+            # 繪製基礎鋼筋線條（從 SVG 的 path 資訊）
+            # 根據 SVG 中的 path，繪製安全彎鉤直的形狀
+            padding = 100
+            line_start_x = padding
+            line_end_x = img_width - padding
+            line_y = img_height // 2
+            
+            # 繪製主要直線段
+            draw.line([(line_start_x, line_y), (line_end_x - 150, line_y)], fill='black', width=12)
+            
+            # 繪製彎鉤部分（向右彎曲）
+            hook_start_x = line_end_x - 150
+            hook_end_x = line_end_x - 50
+            hook_radius = 50
+            
+            # 繪製彎鉤的圓弧（簡化為直線）
+            draw.line([(hook_start_x, line_y), (hook_start_x, line_y - hook_radius)], fill='black', width=12)
+            draw.line([(hook_start_x, line_y - hook_radius), (hook_end_x, line_y - hook_radius)], fill='black', width=12)
+            
+            # 嘗試載入字體
+            try:
+                # 主要字體（用於長度數字）
+                main_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 60)
+                # 標註字體（用於角度和說明文字）
+                label_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 48)
+                # 標題字體（用於"安全彎鉤"）
+                title_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 56)
+            except:
+                # 回退到預設字體
+                main_font = ImageFont.load_default()
+                label_font = ImageFont.load_default()
+                title_font = ImageFont.load_default()
+            
+            # 1. 左上方：根據文字長度放入長度 398
+            length_text = str(int(length))
+            length_bbox = draw.textbbox((0, 0), length_text, main_font)
+            length_width = length_bbox[2] - length_bbox[0]
+            length_x = line_start_x + 50
+            length_y = line_y - 200
+            draw.text((length_x, length_y), length_text, fill='black', font=main_font)
+            
+            # 2. 正右邊：固定是 180'
+            angle_text = "180°"
+            angle_bbox = draw.textbbox((0, 0), angle_text, label_font)
+            angle_width = angle_bbox[2] - angle_bbox[0]
+            angle_x = line_end_x + 20
+            angle_y = line_y - 20
+            draw.text((angle_x, angle_y), angle_text, fill='black', font=label_font)
+            
+            # 3. 右上方：固定是 10
+            size_text = "10"
+            size_bbox = draw.textbbox((0, 0), size_text, label_font)
+            size_width = size_bbox[2] - size_bbox[0]
+            size_x = line_end_x - 50
+            size_y = line_y - 250
+            draw.text((size_x, size_y), size_text, fill='black', font=label_font)
+            
+            # 4. 正上方：固定文字"安全彎鉤"
+            title_text = "安全彎鉤"
+            title_bbox = draw.textbbox((0, 0), title_text, title_font)
+            title_width = title_bbox[2] - title_bbox[0]
+            title_x = (img_width - title_width) // 2  # 水平置中
+            title_y = 80  # 靠近頂部
+            draw.text((title_x, title_y), title_text, fill='black', font=title_font)
+            
+            return image
+            
+        except Exception as e:
+            print(f"❌ 從 SVG 創建 type11 圖片失敗: {e}")
             return None
     
     def save_image(self, image, output_path):
