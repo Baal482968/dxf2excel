@@ -79,34 +79,35 @@ class GraphicsManager:
             x2 = float(line_element.get('x2', 450))  # 固定長度
             y2 = float(line_element.get('y2', 200))
             
-            # 創建圖片
-            img_width = 800  # 固定寬度
-            img_height = 400
+            # 創建圖片 - 更大的尺寸以支援更好的縮放
+            img_width = 1200  # 增加寬度
+            img_height = 600
             image = Image.new('RGB', (img_width, img_height), color='white')
             draw = ImageDraw.Draw(image)
             
-            # 繪製鋼筋線條（固定長度）
-            line_start_x = 350
-            line_end_x = 450  # 固定長度
-            line_y = 200
+            # 繪製鋼筋線條（固定長度）- 調整位置和寬度，接近圖片寬度
+            padding = 100  # 左右 padding
+            line_start_x = padding
+            line_end_x = img_width - padding  # 從左邊 padding 到右邊 padding
+            line_y = img_height // 2  # 垂直置中
             
-            # 繪製線條
-            draw.line([(line_start_x, line_y), (line_end_x, line_y)], fill='black', width=3)
+            # 繪製線條 - 增加寬度
+            draw.line([(line_start_x, line_y), (line_end_x, line_y)], fill='black', width=12)
             
-            # 繪製長度文字（在線條上方，不帶單位和小數點）
+            # 繪製長度文字（在線條上方，不帶單位和小數點）- 調整字體大小和位置
             text = str(int(length))  # 轉換為整數並移除小數點
             try:
-                # 嘗試使用系統字體
-                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 24)
+                # 嘗試使用系統字體 - 增加字體大小，讓數字更明顯
+                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 72)
             except:
                 # 回退到預設字體
                 font = ImageFont.load_default()
             
-            # 計算文字位置（置中於線條上方）
+            # 計算文字位置（置中於線條上方）- 調整位置
             text_bbox = draw.textbbox((0, 0), text, font=font)
             text_width = text_bbox[2] - text_bbox[0]
             text_x = line_start_x + (line_end_x - line_start_x) // 2 - text_width // 2
-            text_y = line_y - 40  # 在線條上方 40 像素
+            text_y = line_y - 120  # 在線條上方 120 像素，給數字更多空間
             
             # 繪製文字
             draw.text((text_x, text_y), text, fill='black', font=font)

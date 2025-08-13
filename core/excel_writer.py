@@ -274,9 +274,9 @@ class ExcelWriter:
                 try:
                     print(f"🔍 嘗試插入圖片: {visual_info}")
                     img = ExcelImage(visual_info)
-                    # 調整圖片大小
-                    img.width = 120
-                    img.height = 80
+                    # 調整圖片大小 - 撐滿儲存格
+                    img.width = 200
+                    img.height = 120
                     
                     # 先清空圖示欄的文字內容
                     diagram_cell.value = ""
@@ -292,8 +292,8 @@ class ExcelWriter:
                     # 再次確保圖示欄是空的
                     diagram_cell.value = ""
                     
-                    # 調整行高以容納圖片
-                    self.worksheet.row_dimensions[current_row].height = 80
+                    # 調整行高以容納圖片 - 撐滿儲存格
+                    self.worksheet.row_dimensions[current_row].height = 120
                     
                 except Exception as e:
                     print(f"⚠️ 圖片插入失敗: {e}")
