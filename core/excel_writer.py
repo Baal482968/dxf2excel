@@ -6,17 +6,19 @@ Excel 輸出相關功能模組 - 增強版
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
-# ExcelImage 已移除，改為純文字模式
+from openpyxl.drawing.image import Image as ExcelImage
 from datetime import datetime
-# tempfile 模組已移除
-# base64 模組已移除
+import tempfile
 import os
-# io 模組已移除
-# PIL 圖片處理已移除
 import re
 
-# 圖形相關模組已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
-GraphicsManager = None
+# 圖形相關模組
+try:
+    from utils.graphics.manager import GraphicsManager
+    print("✅ 圖形管理器初始化成功")
+except ImportError:
+    GraphicsManager = None
+    print("⚠️ 圖形管理器初始化失敗")
 
 class ExcelWriter:
     """Excel 檔案寫入器 - 增強版"""
@@ -34,11 +36,21 @@ class ExcelWriter:
         """
         self.workbook = None
         self.worksheet = None
-        # 暫存圖片檔案列表已移除
+        self.temp_files = []  # 暫存圖片檔案列表
         self.image_mode = image_mode
         
-        # 圖形管理器已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
-        self.graphics_available = False
+        # 圖形管理器初始化
+        if GraphicsManager:
+            try:
+                self.graphics_manager = GraphicsManager()
+                self.graphics_available = True
+                print("✅ 圖形管理器初始化成功")
+            except Exception as e:
+                print(f"⚠️ 圖形管理器初始化失敗: {e}")
+                self.graphics_available = False
+        else:
+            self.graphics_available = False
+            print("⚠️ 圖形管理器不可用")
         
         # 根據可用性調整模式
         if self.image_mode == "auto":
@@ -81,6 +93,13 @@ class ExcelWriter:
         """儲存工作簿，並在儲存後清理暫存檔案"""
         if self.workbook:
             try:
+                # 檢查保存前的圖片狀態
+                if hasattr(self, 'worksheet') and self.worksheet:
+                    print(f"🔍 保存前工作表圖片數量: {len(self.worksheet._images)}")
+                    if hasattr(self.worksheet, '_images') and self.worksheet._images:
+                        for i, img in enumerate(self.worksheet._images):
+                            print(f"   圖片 {i+1}: {img}")
+                
                 self.workbook.save(file_path)
                 print(f"✅ Excel 檔案已儲存: {file_path}")
             except Exception as e:
@@ -91,9 +110,16 @@ class ExcelWriter:
         self._cleanup_temp_files()
     
     def _cleanup_temp_files(self):
-        """清理暫存檔案 - 已簡化"""
-        # 暫存檔案清理功能已移除
-        pass
+        """清理暫存檔案"""
+        if hasattr(self, 'temp_files'):
+            for temp_file in self.temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                        print(f"🗑️ 已清理暫存檔案: {temp_file}")
+                except Exception as e:
+                    print(f"⚠️ 清理暫存檔案失敗: {e}")
+            self.temp_files.clear()
     
     def write_header(self, start_row=2):
         """寫入表頭，可指定起始 row"""
@@ -177,21 +203,27 @@ class ExcelWriter:
         else:
             rebar_id = rebar_number
 
-        image_path = None
-        text_description = ""
-        if not self.graphics_available:
-            # 圖形功能不可用，生成簡單文字描述
-            if len(segments) == 1:
-                text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
-            elif len(segments) == 2:
-                text_description = f"L型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])}cm"
-            elif len(segments) == 3:
-                text_description = f"U型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
-            else:
-                text_description = f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
-            return text_description
-        # 圖示生成功能已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
-        # 根據鋼筋類型生成文字描述
+        # 檢查是否為 type10 鋼筋
+        if shape_type == 'type10' and self.graphics_available:
+            try:
+                # 生成 type10 鋼筋圖片
+                length = segments[0] if segments else 0
+                image = self.graphics_manager.generate_type10_rebar_image(length, rebar_id)
+                
+                if image:
+                    # 保存到臨時檔案
+                    import tempfile
+                    temp_img_path = tempfile.mktemp(suffix='.png')
+                    image.save(temp_img_path)
+                    self.temp_files.append(temp_img_path)
+                    
+                    print(f"🔍 生成 type10 鋼筋圖片: {temp_img_path}")
+                    return temp_img_path
+                    
+            except Exception as e:
+                print(f"⚠️ 生成 type10 鋼筋圖片失敗: {e}")
+        
+        # 生成文字描述
         if len(segments) == 1:
             text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
         elif len(segments) == 2:
@@ -231,11 +263,47 @@ class ExcelWriter:
                     self.worksheet.cell(row=current_row, column=3 + i).value = segment
             
             # 生成鋼筋視覺表示
-            text_description = self._generate_rebar_visual(rebar)
+            visual_info = self._generate_rebar_visual(rebar)
             
-            # 圖示欄處理 - 現階段留空，等 assets/materials 圖片準備好時再實作
+            # 圖示欄處理
             diagram_cell = self.worksheet.cell(row=current_row, column=10) # 圖示在第10欄
-            diagram_cell.value = ""  # 暫時留空
+            
+            # 檢查是否為圖片路徑
+            if isinstance(visual_info, str) and os.path.exists(visual_info) and self.image_mode in ['image', 'mixed']:
+                # 插入圖片
+                try:
+                    print(f"🔍 嘗試插入圖片: {visual_info}")
+                    img = ExcelImage(visual_info)
+                    # 調整圖片大小
+                    img.width = 120
+                    img.height = 80
+                    
+                    # 先清空圖示欄的文字內容
+                    diagram_cell.value = ""
+                    
+                    # 使用 Claude 建議的正確語法
+                    self.worksheet.add_image(img, f'J{current_row}')
+                    
+                    print(f"✅ 圖片插入成功到儲存格 J{current_row}")
+                    
+                    # 檢查圖片是否真的被添加
+                    print(f"🔍 工作表圖片數量: {len(self.worksheet._images)}")
+                    
+                    # 再次確保圖示欄是空的
+                    diagram_cell.value = ""
+                    
+                    # 調整行高以容納圖片
+                    self.worksheet.row_dimensions[current_row].height = 80
+                    
+                except Exception as e:
+                    print(f"⚠️ 圖片插入失敗: {e}")
+                    # 如果圖片插入失敗，使用文字描述
+                    diagram_cell.value = visual_info
+                    self.worksheet.row_dimensions[current_row].height = 60
+            else:
+                # 使用文字描述
+                diagram_cell.value = visual_info
+                self.worksheet.row_dimensions[current_row].height = 60
             
             # 其他資料欄位
             self.worksheet.cell(row=current_row, column=11).value = round(rebar.get('length', 0), 1)
@@ -251,9 +319,6 @@ class ExcelWriter:
                     cell.font = self.styles['normal_font']
                     cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = self.styles['border']
-            
-            # 調整行高 - 圖片模式已移除，統一使用文字模式行高
-            self.worksheet.row_dimensions[current_row].height = 60
             
             current_row += 1
             

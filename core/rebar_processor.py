@@ -167,6 +167,31 @@ class RebarProcessor:
                 'type': tie_type,
                 'note': tie_type # 在備註中也標明類型
             }
+        # 新增：處理 type10 直料鋼筋格式
+        # 格式: #3-700x99 (單段直料)
+        type10_pattern = r'(#\d+)-([\d\.]+)x(\d+)'
+        type10_match = re.match(type10_pattern, text)
+
+        if type10_match:
+            rebar_number = type10_match.group(1)
+            length = float(type10_match.group(2))
+            count = int(type10_match.group(3))
+            
+            # 計算重量
+            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
+            weight = unit_weight * length * count / 100  # 轉換為 kg
+
+            return {
+                'rebar_number': rebar_number,
+                'segments': [length],
+                'angles': [],
+                'count': count,
+                'raw_text': text,
+                'length': length,
+                'weight': weight,
+                'type': 'type10',
+                'note': '直料'
+            }
         
         # 新增：處理「安」筋格式
         # 格式: 安#5-3000x20 or 安#5-25+1000x20
