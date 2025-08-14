@@ -1,5 +1,5 @@
 pandas>=1.5.0
 ezdxf>=1.0.0
 openpyxl>=3.1.0
-# matplotlib>=3.8.3  # 已移除
-# Pillow>=11.2.0  # 已移除 
+Pillow>=11.2.0
+PyQt6>=6.5.0
