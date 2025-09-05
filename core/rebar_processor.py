@@ -136,6 +136,39 @@ class RebarProcessor:
                 'note': '安全彎鉤直'
             }
         
+        # 處理 type12 折料鋼筋格式
+        # 格式: V113°#10-900+200x2 (折料)
+        print(f"🔍 type12 文字: {text}")
+        type12_pattern = r'V(\d+)°(#\d+)-([\d\.]+)\+([\d\.]+)x(\d+)'
+        type12_match = re.match(type12_pattern, text)
+        print(f"🔍 type12 正則匹配結果: {type12_match}")
+
+        if type12_match:
+            angle = int(type12_match.group(1))
+            rebar_number = type12_match.group(2)
+            length1 = float(type12_match.group(3))
+            length2 = float(type12_match.group(4))
+            count = int(type12_match.group(5))
+            
+            # 計算總長度
+            total_length = length1 + length2
+            
+            # 計算重量
+            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
+            weight = unit_weight * total_length * count / 100  # 轉換為 kg
+
+            return {
+                'rebar_number': rebar_number,
+                'segments': [length1, length2],
+                'angles': [angle],
+                'count': count,
+                'raw_text': text,
+                'length': total_length,
+                'weight': weight,
+                'type': 'type12',
+                'note': f'折料 {angle}°'
+            }
+        
         # 無法解析的格式
         return None
 

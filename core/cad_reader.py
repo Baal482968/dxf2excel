@@ -39,8 +39,10 @@ class CADReader:
         try:
             # 遍歷所有文字實體
             for text in self.modelspace.query('TEXT'):
-                print(f"[DEBUG][TEXT] {text.dxf.text}")
-                rebar_info = self.rebar_processor.parse_rebar_text(text.dxf.text)
+                # 處理 DXF 特殊編碼
+                processed_text = text.dxf.text.replace('%%D', '°')
+                print(f"[DEBUG][TEXT] {text.dxf.text} -> {processed_text}")
+                rebar_info = self.rebar_processor.parse_rebar_text(processed_text)
                 if rebar_info:
                     rebar_info['position'] = text.dxf.insert
                     rebar_info['rotation'] = text.dxf.rotation
@@ -53,7 +55,9 @@ class CADReader:
                 print(f"[DEBUG][MTEXT] {text_content}")
                 # 分割多行文字
                 for line in text_content.split('\n'):
-                    rebar_info = self.rebar_processor.parse_rebar_text(line)
+                    # 處理 DXF 特殊編碼
+                    processed_line = line.replace('%%D', '°')
+                    rebar_info = self.rebar_processor.parse_rebar_text(processed_line)
                     if rebar_info:
                         rebar_info['position'] = mtext.dxf.insert
                         rebar_info['rotation'] = mtext.dxf.rotation

@@ -93,6 +93,41 @@ class GraphicsManager:
         except Exception as e:
             print(f"❌ 生成 type11 鋼筋圖片失敗: {e}")
             return None
+
+    def generate_type12_rebar_image(self, segments, angles, rebar_number, output_path=None):
+        """生成 type12 鋼筋（折料）圖片"""
+        print(f"🔍 開始生成 type12 鋼筋圖片，段長: {segments}, 角度: {angles}, 號數: {rebar_number}")
+        try:
+            # 尋找 type12 材料
+            type12_material = None
+            for material in self.available_materials:
+                if material.startswith("12-"):
+                    type12_material = material
+                    break
+            
+            print(f"🔍 找到 type12 材料: {type12_material}")
+            
+            if not type12_material:
+                print(f"❌ 找不到 type12 材料")
+                return None
+            
+            # 構建 SVG 檔案路徑
+            svg_path = self.materials_dir / type12_material / "graphic-material.svg"
+            print(f"🔍 SVG 檔案路徑: {svg_path}")
+            
+            if not svg_path.exists():
+                print(f"❌ SVG 檔案不存在: {svg_path}")
+                return None
+            
+            # 解析 SVG 並生成圖片
+            print(f"🔍 開始調用 _create_type12_rebar_image_from_svg")
+            result = self._create_type12_rebar_image_from_svg(svg_path, segments, angles, rebar_number)
+            print(f"🔍 _create_type12_rebar_image_from_svg 返回: {result}")
+            return result
+            
+        except Exception as e:
+            print(f"❌ 生成 type12 鋼筋圖片失敗: {e}")
+            return None
     
     def _create_type10_rebar_image_from_svg(self, svg_path, length, rebar_number):
         """從 SVG 創建 type10 鋼筋圖片"""
@@ -259,6 +294,138 @@ class GraphicsManager:
             
         except Exception as e:
             print(f"❌ 從 SVG 創建 type11 圖片失敗: {e}")
+            return None
+
+    def _create_type12_rebar_image_from_svg(self, svg_path, segments, angles, rebar_number):
+        """從 SVG 創建 type12 鋼筋（折料）圖片"""
+        print(f"🔍 _create_type12_rebar_image_from_svg 開始執行")
+        try:
+            # 解析 SVG
+            tree = ET.parse(svg_path)
+            root = tree.getroot()
+            print(f"🔍 SVG 解析成功")
+            
+            # 創建圖片 - 簡潔的尺寸
+            img_width = 800
+            img_height = 400
+            image = Image.new('RGB', (img_width, img_height), color='white')
+            draw = ImageDraw.Draw(image)
+            print(f"🔍 圖片創建成功，尺寸: {img_width}x{img_height}")
+            
+            # 解析 SVG 中的 line 元素
+            line_elements = root.findall(".//{http://www.w3.org/2000/svg}line")
+            print(f"🔍 找到 {len(line_elements)} 個 line 元素")
+            
+            if len(line_elements) >= 2:
+                # 計算縮放比例（SVG 800x600 -> 圖片 800x400）
+                scale_x = img_width / 800
+                scale_y = img_height / 600
+                
+                # 繪製鋼筋線條
+                line_width = 8
+                
+                # 第一條線：(550,400) -> (50,400) - 水平線
+                line1 = line_elements[0]
+                x1 = int(float(line1.get('x1', 550)) * scale_x)
+                y1 = int(float(line1.get('y1', 400)) * scale_y)
+                x2 = int(float(line1.get('x2', 50)) * scale_x)
+                y2 = int(float(line1.get('y2', 400)) * scale_y)
+                draw.line([(x1, y1), (x2, y2)], fill='black', width=line_width)
+                
+                # 第二條線：(550,400) -> (750,200) - 斜線
+                line2 = line_elements[1]
+                x3 = int(float(line2.get('x1', 550)) * scale_x)
+                y3 = int(float(line2.get('y1', 400)) * scale_y)
+                x4 = int(float(line2.get('x2', 750)) * scale_x)
+                y4 = int(float(line2.get('y2', 200)) * scale_y)
+                draw.line([(x3, y3), (x4, y4)], fill='black', width=line_width)
+                
+                print(f"🔍 鋼筋線條繪製完成")
+                
+                # 添加標註（長度和角度）
+                try:
+                    font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 32)
+                    small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 24)
+                except:
+                    font = ImageFont.load_default()
+                    small_font = ImageFont.load_default()
+                
+                # 在水平線上方顯示第一段長度
+                if len(segments) >= 1:
+                    length1_text = str(int(segments[0]))
+                    text_bbox = draw.textbbox((0, 0), length1_text, font)
+                    text_width = text_bbox[2] - text_bbox[0]
+                    text_x = (x1 + x2) // 2 - text_width // 2
+                    text_y = y1 - 50
+                    draw.text((text_x, text_y), length1_text, fill='black', font=font)
+                
+                # 在斜線旁邊顯示第二段長度
+                if len(segments) >= 2:
+                    length2_text = str(int(segments[1]))
+                    text_bbox = draw.textbbox((0, 0), length2_text, small_font)
+                    text_width = text_bbox[2] - text_bbox[0]
+                    text_x = x4 + 10
+                    text_y = (y3 + y4) // 2 - 10
+                    draw.text((text_x, text_y), length2_text, fill='black', font=small_font)
+                
+                # 在斜線上方顯示角度
+                if len(angles) >= 1:
+                    angle_text = f"{angles[0]}°"
+                    text_bbox = draw.textbbox((0, 0), angle_text, small_font)
+                    text_width = text_bbox[2] - text_bbox[0]
+                    text_x = (x3 + x4) // 2 - text_width // 2
+                    text_y = min(y3, y4) - 30
+                    draw.text((text_x, text_y), angle_text, fill='black', font=small_font)
+                
+            else:
+                print(f"⚠️ 找不到足夠的 line 元素，使用預設繪製")
+                # 如果找不到 line 元素，使用預設的簡單繪製
+                padding = 100
+                line_start_x = padding
+                line_end_x = img_width - padding
+                line_y = img_height // 2
+                
+                # 繪製水平線段
+                draw.line([(line_start_x, line_y), (line_end_x - 100, line_y)], fill='black', width=8)
+                
+                # 繪製斜線段（折料）
+                hook_start_x = line_end_x - 100
+                hook_end_x = line_end_x - 50
+                hook_height = 100
+                
+                draw.line([(hook_start_x, line_y), (hook_end_x, line_y - hook_height)], fill='black', width=8)
+                
+                # 添加標註
+                try:
+                    font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 32)
+                    small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 24)
+                except:
+                    font = ImageFont.load_default()
+                    small_font = ImageFont.load_default()
+                
+                # 顯示長度
+                if len(segments) >= 1:
+                    length_text = str(int(segments[0]))
+                    text_bbox = draw.textbbox((0, 0), length_text, font)
+                    text_width = text_bbox[2] - text_bbox[0]
+                    text_x = (line_start_x + line_end_x - 100) // 2 - text_width // 2
+                    text_y = line_y - 50
+                    draw.text((text_x, text_y), length_text, fill='black', font=font)
+                
+                # 顯示角度
+                if len(angles) >= 1:
+                    angle_text = f"{angles[0]}°"
+                    text_bbox = draw.textbbox((0, 0), angle_text, small_font)
+                    text_width = text_bbox[2] - text_bbox[0]
+                    text_x = (hook_start_x + hook_end_x) // 2 - text_width // 2
+                    text_y = line_y - hook_height - 30
+                    draw.text((text_x, text_y), angle_text, fill='black', font=small_font)
+            
+            print(f"🔍 type12 圖片生成完成")
+            return image
+            
+        except Exception as e:
+            print(f"❌ 從 SVG 創建 type12 圖片失敗: {e}")
             return None
     
     def save_image(self, image, output_path):
