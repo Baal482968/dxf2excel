@@ -504,9 +504,9 @@ class GraphicsManager:
         """繪製圓弧鋼筋"""
         import math
         
-        # 計算圓弧參數
+        # 計算圓弧參數 - 調整位置讓弧線在中央偏上
         center_x = img_width // 2
-        center_y = img_height // 2
+        center_y = img_height // 2  # 放在中央
         
         # 根據長度計算圓弧角度（假設圓弧長度對應角度）
         # 圓弧長度 = 半徑 × 角度（弧度）
@@ -517,17 +517,23 @@ class GraphicsManager:
         # 限制角度範圍（0-180度）
         arc_angle_deg = min(arc_angle_deg, 180)
         
-        # 計算圓弧的起始和結束角度
-        start_angle = -arc_angle_deg / 2
-        end_angle = arc_angle_deg / 2
+        # 計算圓弧的起始和結束角度 - 開口向下
+        # PIL 的角度系統：0度在右側，90度在上方，180度在左側，270度在下方
+        # 要開口向下，需要轉 180 度
+        start_angle = 270 - arc_angle_deg / 2  # 從左側開始
+        end_angle = 270 + arc_angle_deg / 2    # 到右側結束
+        
+        # 調整半徑以適應圖片大小
+        max_radius = min(img_width, img_height) // 3
+        actual_radius = min(radius, max_radius)
         
         # 繪製圓弧
         line_width = 8
         bbox = [
-            center_x - radius * scale_x,
-            center_y - radius * scale_y,
-            center_x + radius * scale_x,
-            center_y + radius * scale_y
+            center_x - actual_radius,
+            center_y - actual_radius,
+            center_x + actual_radius,
+            center_y + actual_radius
         ]
         
         # 使用 PIL 的 arc 方法繪製圓弧
@@ -541,24 +547,28 @@ class GraphicsManager:
         import math
         
         center_x = img_width // 2
-        center_y = img_height // 2
+        center_y = img_height // 2  # 放在中央
         
         # 計算圓弧角度
         arc_angle_rad = length / radius if radius > 0 else math.pi / 2
         arc_angle_deg = math.degrees(arc_angle_rad)
         arc_angle_deg = min(arc_angle_deg, 180)
         
-        # 繪製圓弧
+        # 調整半徑以適應圖片大小
+        max_radius = min(img_width, img_height) // 3
+        actual_radius = min(radius, max_radius)
+        
+        # 繪製圓弧 - 開口向下
         line_width = 8
         bbox = [
-            center_x - radius,
-            center_y - radius,
-            center_x + radius,
-            center_y + radius
+            center_x - actual_radius,
+            center_y - actual_radius,
+            center_x + actual_radius,
+            center_y + actual_radius
         ]
         
-        start_angle = -arc_angle_deg / 2
-        end_angle = arc_angle_deg / 2
+        start_angle = 270 - arc_angle_deg / 2  # 從左側開始
+        end_angle = 270 + arc_angle_deg / 2    # 到右側結束
         
         draw.arc(bbox, start_angle, end_angle, fill='black', width=line_width)
         
@@ -574,20 +584,24 @@ class GraphicsManager:
             font = ImageFont.load_default()
             small_font = ImageFont.load_default()
         
-        # 在圓弧上方顯示長度
+        # 計算實際使用的半徑
+        max_radius = min(img_width, img_height) // 3
+        actual_radius = min(radius, max_radius)
+        
+        # 在弧線開口處顯示長度（弧線下方）
         length_text = str(int(length))
         text_bbox = draw.textbbox((0, 0), length_text, font)
         text_width = text_bbox[2] - text_bbox[0]
         text_x = center_x - text_width // 2
-        text_y = center_y - radius - 50
+        text_y = center_y + actual_radius + 20  # 在弧線下方
         draw.text((text_x, text_y), length_text, fill='black', font=font)
         
-        # 在圓弧下方顯示半徑
+        # 在更下方顯示半徑
         radius_text = f"半徑={radius}"
         text_bbox = draw.textbbox((0, 0), radius_text, small_font)
         text_width = text_bbox[2] - text_bbox[0]
         text_x = center_x - text_width // 2
-        text_y = center_y + radius + 30
+        text_y = center_y + actual_radius + 60  # 在長度下方
         draw.text((text_x, text_y), radius_text, fill='black', font=small_font)
     
     def save_image(self, image, output_path):
