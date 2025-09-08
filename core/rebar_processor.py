@@ -169,6 +169,36 @@ class RebarProcessor:
                 'note': f'折料 {angle}°'
             }
         
+        # 處理 type18 直料圓弧鋼筋格式
+        # 格式: 弧450#10-700x1 (直料圓弧)
+        print(f"🔍 type18 文字: {text}")
+        type18_pattern = r'弧(\d+)(#\d+)-([\d\.]+)x(\d+)'
+        type18_match = re.match(type18_pattern, text)
+        print(f"🔍 type18 正則匹配結果: {type18_match}")
+
+        if type18_match:
+            radius = int(type18_match.group(1))
+            rebar_number = type18_match.group(2)
+            length = float(type18_match.group(3))
+            count = int(type18_match.group(4))
+            
+            # 計算重量
+            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
+            weight = unit_weight * length * count / 100  # 轉換為 kg
+
+            return {
+                'rebar_number': rebar_number,
+                'segments': [length],
+                'angles': [],
+                'radius': radius,
+                'count': count,
+                'raw_text': text,
+                'length': length,
+                'weight': weight,
+                'type': 'type18',
+                'note': f'直料圓弧 R{radius}'
+            }
+        
         # 無法解析的格式
         return None
 

@@ -128,6 +128,41 @@ class GraphicsManager:
         except Exception as e:
             print(f"❌ 生成 type12 鋼筋圖片失敗: {e}")
             return None
+
+    def generate_type18_rebar_image(self, length, radius, rebar_number, output_path=None):
+        """生成 type18 鋼筋（直料圓弧）圖片"""
+        print(f"🔍 開始生成 type18 鋼筋圖片，長度: {length}, 半徑: {radius}, 號數: {rebar_number}")
+        try:
+            # 尋找 type18 材料
+            type18_material = None
+            for material in self.available_materials:
+                if material.startswith("18-"):
+                    type18_material = material
+                    break
+            
+            print(f"🔍 找到 type18 材料: {type18_material}")
+            
+            if not type18_material:
+                print(f"❌ 找不到 type18 材料")
+                return None
+            
+            # 構建 SVG 檔案路徑
+            svg_path = self.materials_dir / type18_material / "graphic-material.svg"
+            print(f"🔍 SVG 檔案路徑: {svg_path}")
+            
+            if not svg_path.exists():
+                print(f"❌ SVG 檔案不存在: {svg_path}")
+                return None
+            
+            # 解析 SVG 並生成圖片
+            print(f"🔍 開始調用 _create_type18_rebar_image_from_svg")
+            result = self._create_type18_rebar_image_from_svg(svg_path, length, radius, rebar_number)
+            print(f"🔍 _create_type18_rebar_image_from_svg 返回: {result}")
+            return result
+            
+        except Exception as e:
+            print(f"❌ 生成 type18 鋼筋圖片失敗: {e}")
+            return None
     
     def _create_type10_rebar_image_from_svg(self, svg_path, length, rebar_number):
         """從 SVG 創建 type10 鋼筋圖片"""
@@ -260,34 +295,34 @@ class GraphicsManager:
             else:
                 print(f"⚠️ 找不到 path 元素，使用預設繪製")
                 # 如果找不到 path，使用預設的簡單繪製
-                padding = 100
-                line_start_x = padding
-                line_end_x = img_width - padding
-                line_y = img_height // 2
-                
-                # 繪製主要直線段
-                draw.line([(line_start_x, line_y), (line_end_x - 100, line_y)], fill='black', width=8)
-                
-                # 繪製彎鉤
-                hook_start_x = line_end_x - 100
-                hook_end_x = line_end_x - 50
-                hook_height = 50
-                
-                draw.line([(hook_start_x, line_y), (hook_start_x, line_y - hook_height)], fill='black', width=8)
-                draw.line([(hook_start_x, line_y - hook_height), (hook_end_x, line_y - hook_height)], fill='black', width=8)
-                
-                # 添加長度標註
-                try:
-                    font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 36)
-                except:
-                    font = ImageFont.load_default()
-                
-                length_text = str(int(length))
-                text_bbox = draw.textbbox((0, 0), length_text, font)
-                text_width = text_bbox[2] - text_bbox[0]
-                text_x = (line_start_x + line_end_x - 100) // 2 - text_width // 2
-                text_y = line_y - 50
-                draw.text((text_x, text_y), length_text, fill='black', font=font)
+            padding = 100
+            line_start_x = padding
+            line_end_x = img_width - padding
+            line_y = img_height // 2
+            
+            # 繪製主要直線段
+            draw.line([(line_start_x, line_y), (line_end_x - 100, line_y)], fill='black', width=8)
+            
+            # 繪製彎鉤
+            hook_start_x = line_end_x - 100
+            hook_end_x = line_end_x - 50
+            hook_height = 50
+            
+            draw.line([(hook_start_x, line_y), (hook_start_x, line_y - hook_height)], fill='black', width=8)
+            draw.line([(hook_start_x, line_y - hook_height), (hook_end_x, line_y - hook_height)], fill='black', width=8)
+            
+            # 添加長度標註
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 36)
+            except:
+                font = ImageFont.load_default()
+            
+            length_text = str(int(length))
+            text_bbox = draw.textbbox((0, 0), length_text, font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_x = (line_start_x + line_end_x - 100) // 2 - text_width // 2
+            text_y = line_y - 50
+            draw.text((text_x, text_y), length_text, fill='black', font=font)
             
             print(f"🔍 type11 圖片生成完成")
             return image
@@ -427,6 +462,133 @@ class GraphicsManager:
         except Exception as e:
             print(f"❌ 從 SVG 創建 type12 圖片失敗: {e}")
             return None
+
+    def _create_type18_rebar_image_from_svg(self, svg_path, length, radius, rebar_number):
+        """從 SVG 創建 type18 鋼筋（直料圓弧）圖片"""
+        print(f"🔍 _create_type18_rebar_image_from_svg 開始執行")
+        try:
+            # 解析 SVG
+            tree = ET.parse(svg_path)
+            root = tree.getroot()
+            print(f"🔍 SVG 解析成功")
+            
+            # 創建圖片
+            img_width = 800
+            img_height = 400
+            image = Image.new('RGB', (img_width, img_height), color='white')
+            draw = ImageDraw.Draw(image)
+            print(f"🔍 圖片創建成功，尺寸: {img_width}x{img_height}")
+            
+            # 解析 SVG 中的 path 數據（圓弧）
+            path_element = root.find(".//{http://www.w3.org/2000/svg}path")
+            if path_element is not None:
+                # 計算縮放比例
+                scale_x = img_width / 800
+                scale_y = img_height / 600
+                
+                # 繪製圓弧鋼筋
+                self._draw_arc_rebar(draw, length, radius, img_width, img_height, scale_x, scale_y)
+                
+            else:
+                # 使用預設繪製
+                self._draw_default_arc(draw, length, radius, img_width, img_height)
+            
+            print(f"🔍 type18 圖片生成完成")
+            return image
+            
+        except Exception as e:
+            print(f"❌ 從 SVG 創建 type18 圖片失敗: {e}")
+            return None
+    
+    def _draw_arc_rebar(self, draw, length, radius, img_width, img_height, scale_x, scale_y):
+        """繪製圓弧鋼筋"""
+        import math
+        
+        # 計算圓弧參數
+        center_x = img_width // 2
+        center_y = img_height // 2
+        
+        # 根據長度計算圓弧角度（假設圓弧長度對應角度）
+        # 圓弧長度 = 半徑 × 角度（弧度）
+        # 角度 = 圓弧長度 / 半徑
+        arc_angle_rad = length / radius if radius > 0 else math.pi / 2
+        arc_angle_deg = math.degrees(arc_angle_rad)
+        
+        # 限制角度範圍（0-180度）
+        arc_angle_deg = min(arc_angle_deg, 180)
+        
+        # 計算圓弧的起始和結束角度
+        start_angle = -arc_angle_deg / 2
+        end_angle = arc_angle_deg / 2
+        
+        # 繪製圓弧
+        line_width = 8
+        bbox = [
+            center_x - radius * scale_x,
+            center_y - radius * scale_y,
+            center_x + radius * scale_x,
+            center_y + radius * scale_y
+        ]
+        
+        # 使用 PIL 的 arc 方法繪製圓弧
+        draw.arc(bbox, start_angle, end_angle, fill='black', width=line_width)
+        
+        # 添加標註
+        self._add_arc_annotations(draw, length, radius, center_x, center_y, img_width, img_height)
+    
+    def _draw_default_arc(self, draw, length, radius, img_width, img_height):
+        """繪製預設圓弧"""
+        import math
+        
+        center_x = img_width // 2
+        center_y = img_height // 2
+        
+        # 計算圓弧角度
+        arc_angle_rad = length / radius if radius > 0 else math.pi / 2
+        arc_angle_deg = math.degrees(arc_angle_rad)
+        arc_angle_deg = min(arc_angle_deg, 180)
+        
+        # 繪製圓弧
+        line_width = 8
+        bbox = [
+            center_x - radius,
+            center_y - radius,
+            center_x + radius,
+            center_y + radius
+        ]
+        
+        start_angle = -arc_angle_deg / 2
+        end_angle = arc_angle_deg / 2
+        
+        draw.arc(bbox, start_angle, end_angle, fill='black', width=line_width)
+        
+        # 添加標註
+        self._add_arc_annotations(draw, length, radius, center_x, center_y, img_width, img_height)
+    
+    def _add_arc_annotations(self, draw, length, radius, center_x, center_y, img_width, img_height):
+        """添加圓弧標註"""
+        try:
+            font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 32)
+            small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 24)
+        except:
+            font = ImageFont.load_default()
+            small_font = ImageFont.load_default()
+        
+        # 在圓弧上方顯示長度
+        length_text = str(int(length))
+        text_bbox = draw.textbbox((0, 0), length_text, font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_x = center_x - text_width // 2
+        text_y = center_y - radius - 50
+        draw.text((text_x, text_y), length_text, fill='black', font=font)
+        
+        # 在圓弧下方顯示半徑
+        radius_text = f"半徑={radius}"
+        text_bbox = draw.textbbox((0, 0), radius_text, small_font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_x = center_x - text_width // 2
+        text_y = center_y + radius + 30
+        draw.text((text_x, text_y), radius_text, fill='black', font=small_font)
     
     def save_image(self, image, output_path):
         """保存圖片"""

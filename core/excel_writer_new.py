@@ -205,6 +205,9 @@ class ExcelWriter:
                     image = self.graphics_manager.generate_rebar_image(shape_type, length, rebar_id)
                 elif shape_type == 'type12':
                     image = self.graphics_manager.generate_rebar_image(shape_type, segments, angles, rebar_id)
+                elif shape_type == 'type18':
+                    radius = rebar.get('radius', 0)
+                    image = self.graphics_manager.generate_rebar_image(shape_type, length, radius, rebar_id)
                 else:
                     image = None
                 
