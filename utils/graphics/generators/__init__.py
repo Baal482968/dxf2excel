@@ -7,6 +7,7 @@ from .type10_generator import Type10ImageGenerator
 from .type11_generator import Type11ImageGenerator
 from .type12_generator import Type12ImageGenerator
 from .type18_generator import Type18ImageGenerator
+from .type19_generator import Type19ImageGenerator
 
 # 註冊所有生成器
 GENERATORS = {
@@ -14,6 +15,7 @@ GENERATORS = {
     'type11': Type11ImageGenerator(),
     'type12': Type12ImageGenerator(),
     'type18': Type18ImageGenerator(),
+    'type19': Type19ImageGenerator(),
 }
 
 def get_generator(rebar_type):

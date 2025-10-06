@@ -302,6 +302,34 @@ class ExcelWriter:
         elif shape_type == 'type18':
             print(f"⚠️ type18 檢測到但 graphics_available = {self.graphics_available}")
         
+        # 檢查是否為 type19 鋼筋（直段+弧段）
+        if shape_type == 'type19' and self.graphics_available:
+            print(f"🔍 檢測到 type19 鋼筋，開始生成圖片...")
+            try:
+                # 生成 type19 鋼筋圖片
+                radius = rebar.get('radius', 0)
+                straight_length = segments[0] if len(segments) > 0 else 0
+                arc_length = segments[1] if len(segments) > 1 else 0
+                print(f"🔍 type19 直段: {straight_length}, 弧段: {arc_length}, 半徑: {radius}, 號數: {rebar_id}")
+                image = self.graphics_manager.generate_type19_rebar_image(straight_length, arc_length, radius, rebar_id)
+                
+                if image:
+                    # 保存到臨時檔案
+                    import tempfile
+                    temp_img_path = tempfile.mktemp(suffix='.png')
+                    image.save(temp_img_path)
+                    self.temp_files.append(temp_img_path)
+                    
+                    print(f"🔍 生成 type19 鋼筋圖片: {temp_img_path}")
+                    return temp_img_path
+                else:
+                    print(f"⚠️ type19 圖片生成失敗，返回 None")
+                    
+            except Exception as e:
+                print(f"⚠️ 生成 type19 鋼筋圖片失敗: {e}")
+        elif shape_type == 'type19':
+            print(f"⚠️ type19 檢測到但 graphics_available = {self.graphics_available}")
+        
         # 生成文字描述
         if len(segments) == 1:
             text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"

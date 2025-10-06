@@ -7,6 +7,7 @@ from .type10_processor import Type10Processor
 from .type11_processor import Type11Processor
 from .type12_processor import Type12Processor
 from .type18_processor import Type18Processor
+from .type19_processor import Type19Processor
 
 # 註冊所有處理器
 PROCESSORS = {
@@ -14,6 +15,7 @@ PROCESSORS = {
     'type11': Type11Processor(),
     'type12': Type12Processor(),
     'type18': Type18Processor(),
+    'type19': Type19Processor(),
 }
 
 def get_processor(rebar_type):
