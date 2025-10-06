@@ -4,6 +4,7 @@
 
 import re
 from config import REBAR_UNIT_WEIGHT, REBAR_DIAMETERS, REBAR_GRADES
+from core.processors import get_processor, get_all_processors
 # 圖形相關模組已移除，改為使用 assets/materials/ 資料夾中的圖示檔案
 
 class RebarProcessor:
@@ -75,131 +76,30 @@ class RebarProcessor:
     @staticmethod
     def parse_rebar_text(text):
         """
-        解析鋼筋文字格式
+        解析鋼筋文字格式 - 使用模組化處理器
         
         支援格式：
         - #3-700x99 (type10 單段直料)
         - 安#3-390x40 (type11 安全彎鉤直)
+        - V113°#10-900+200x2 (type12 折料)
+        - 弧450#10-700x1 (type18 直料圓弧)
         """
-        import re
         text = text.strip()
         
-        # 處理 type10 直料鋼筋格式
-        # 格式: #3-700x99 (單段直料)
-        type10_pattern = r'(#\d+)-([\d\.]+)x(\d+)'
-        type10_match = re.match(type10_pattern, text)
-
-        if type10_match:
-            rebar_number = type10_match.group(1)
-            length = float(type10_match.group(2))
-            count = int(type10_match.group(3))
-            
-            # 計算重量
-            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
-            weight = unit_weight * length * count / 100  # 轉換為 kg
-
-            return {
-                'rebar_number': rebar_number,
-                'segments': [length],
-                'angles': [],
-                'count': count,
-                'raw_text': text,
-                'length': length,
-                'weight': weight,
-                'type': 'type10',
-                'note': '直料'
-            }
+        # 獲取所有處理器
+        processors = get_all_processors()
         
-        # 處理 type11 安全彎鉤直鋼筋格式
-        # 格式: 安#3-390x40 (安全彎鉤直)
-        type11_pattern = r'安(#\d+)-([\d\.]+)x(\d+)'
-        type11_match = re.match(type11_pattern, text)
-
-        if type11_match:
-            rebar_number = type11_match.group(1)
-            length = float(type11_match.group(2))
-            count = int(type11_match.group(3))
-            
-            # 計算重量
-            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
-            weight = unit_weight * length * count / 100  # 轉換為 kg
-
-            return {
-                'rebar_number': rebar_number,
-                'segments': [length],
-                'angles': [],
-                'count': count,
-                'raw_text': text,
-                'length': length,
-                'weight': weight,
-                'type': 'type11',
-                'note': '安全彎鉤直'
-            }
-        
-        # 處理 type12 折料鋼筋格式
-        # 格式: V113°#10-900+200x2 (折料)
-        print(f"🔍 type12 文字: {text}")
-        type12_pattern = r'V(\d+)°(#\d+)-([\d\.]+)\+([\d\.]+)x(\d+)'
-        type12_match = re.match(type12_pattern, text)
-        print(f"🔍 type12 正則匹配結果: {type12_match}")
-
-        if type12_match:
-            angle = int(type12_match.group(1))
-            rebar_number = type12_match.group(2)
-            length1 = float(type12_match.group(3))
-            length2 = float(type12_match.group(4))
-            count = int(type12_match.group(5))
-            
-            # 計算總長度
-            total_length = length1 + length2
-            
-            # 計算重量
-            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
-            weight = unit_weight * total_length * count / 100  # 轉換為 kg
-
-            return {
-                'rebar_number': rebar_number,
-                'segments': [length1, length2],
-                'angles': [angle],
-                'count': count,
-                'raw_text': text,
-                'length': total_length,
-                'weight': weight,
-                'type': 'type12',
-                'note': f'折料 {angle}°'
-            }
-        
-        # 處理 type18 直料圓弧鋼筋格式
-        # 格式: 弧450#10-700x1 (直料圓弧)
-        print(f"🔍 type18 文字: {text}")
-        type18_pattern = r'弧(\d+)(#\d+)-([\d\.]+)x(\d+)'
-        type18_match = re.match(type18_pattern, text)
-        print(f"🔍 type18 正則匹配結果: {type18_match}")
-
-        if type18_match:
-            radius = int(type18_match.group(1))
-            rebar_number = type18_match.group(2)
-            length = float(type18_match.group(3))
-            count = int(type18_match.group(4))
-            
-            # 計算重量
-            unit_weight = RebarProcessor.get_rebar_unit_weight(rebar_number)
-            weight = unit_weight * length * count / 100  # 轉換為 kg
-
-            return {
-                'rebar_number': rebar_number,
-                'segments': [length],
-                'angles': [],
-                'radius': radius,
-                'count': count,
-                'raw_text': text,
-                'length': length,
-                'weight': weight,
-                'type': 'type18',
-                'note': f'直料圓弧 R{radius}'
-            }
+        # 嘗試每個處理器
+        for processor_type, processor in processors.items():
+            if processor.can_process(text):
+                print(f"🔍 使用 {processor_type} 處理器處理: {text}")
+                result = processor.process(text)
+                if result:
+                    print(f"🔍 {processor_type} 處理結果: {result}")
+                    return result
         
         # 無法解析的格式
+        print(f"⚠️ 無法解析的鋼筋文字格式: {text}")
         return None
 
     @staticmethod
@@ -209,22 +109,6 @@ class RebarProcessor:
 
     @staticmethod
     def get_rebar_summary(rebar_list):
-        """生成鋼筋統計摘要"""
-        summary = {}
-        
-        for rebar in rebar_list:
-            number = rebar['rebar_number']
-            if number not in summary:
-                summary[number] = {
-                    'count': 0,
-                    'total_length': 0,
-                    'total_weight': 0,
-                    'diameter': RebarProcessor.get_rebar_diameter(number),
-                    'grade': RebarProcessor.get_rebar_grade(number)
-                }
-            
-            summary[number]['count'] += 1
-            summary[number]['total_length'] += rebar.get('length', 0)
-            summary[number]['total_weight'] += rebar.get('weight', 0)
-        
-        return summary 
+        """生成鋼筋統計摘要 - 使用基礎處理器的靜態方法"""
+        from core.processors.base_processor import BaseRebarProcessor
+        return BaseRebarProcessor.get_rebar_summary(rebar_list) 

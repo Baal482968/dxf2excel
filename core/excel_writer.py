@@ -465,9 +465,14 @@ class ExcelWriter:
         self.worksheet.merge_cells(f'A{row}:O{row}')
         cell = self.worksheet.cell(row=row, column=1)
         
-        # 模式資訊 - 圖示功能暫時停用
+        # 根據圖形管理器狀態顯示模式資訊
+        if self.graphics_available:
+            mode_info = f"圖示功能：已啟用 ({self.image_mode} 模式)"
+        else:
+            mode_info = "圖示功能：停用 (圖形管理器不可用)"
+        
         cell.value = (f"生成時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-                     f"圖示功能：暫時停用，等 assets/materials 圖片準備好時再實作")
+                     f"{mode_info}")
         cell.font = self.styles['small_font']
         cell.alignment = Alignment(horizontal='right', vertical='center')
         cell.border = self.styles['border']

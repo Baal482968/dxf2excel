@@ -55,3 +55,30 @@ class BaseRebarProcessor(ABC):
         """計算鋼筋重量（kg）"""
         unit_weight = self.get_rebar_unit_weight(rebar_number)
         return unit_weight * length * count / 100  # 轉換為 kg
+    
+    @staticmethod
+    def validate_rebar_number(number):
+        """驗證鋼筋編號是否有效"""
+        return number in REBAR_UNIT_WEIGHT
+    
+    @staticmethod
+    def get_rebar_summary(rebar_list):
+        """生成鋼筋統計摘要"""
+        summary = {}
+        
+        for rebar in rebar_list:
+            number = rebar['rebar_number']
+            if number not in summary:
+                summary[number] = {
+                    'count': 0,
+                    'total_length': 0,
+                    'total_weight': 0,
+                    'diameter': REBAR_DIAMETERS.get(number, 0),
+                    'grade': REBAR_GRADES.get(number, "未知")
+                }
+            
+            summary[number]['count'] += 1
+            summary[number]['total_length'] += rebar.get('length', 0)
+            summary[number]['total_weight'] += rebar.get('weight', 0)
+        
+        return summary
