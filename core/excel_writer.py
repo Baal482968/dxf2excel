@@ -20,6 +20,13 @@ except ImportError:
     GraphicsManager = None
     print("⚠️ 圖形管理器初始化失敗")
 
+# Excel 寫入器模組
+try:
+    from core.excel_writers import get_excel_writer, create_excel_writer_for_rebar
+    print("✅ Excel 寫入器模組載入成功")
+except ImportError:
+    print("⚠️ Excel 寫入器模組載入失敗")
+
 class ExcelWriter:
     """Excel 檔案寫入器 - 增強版"""
     
@@ -190,157 +197,37 @@ class ExcelWriter:
 
     def _generate_rebar_visual(self, rebar):
         """
-        生成鋼筋視覺表示（圖片或文字描述）
+        生成鋼筋視覺表示（圖片或文字描述）- 使用模組化寫入器
         """
-        rebar_number = rebar.get('raw_text', rebar.get('rebar_number', '#4'))
+        try:
+            # 使用模組化的 Excel 寫入器
+            excel_writer = create_excel_writer_for_rebar(rebar, self.graphics_manager)
+            if excel_writer:
+                visual_info = excel_writer.generate_visual(rebar)
+                # 將暫存檔案轉移到主寫入器
+                self.temp_files.extend(excel_writer.temp_files)
+                excel_writer.temp_files.clear()
+                return visual_info
+            else:
+                # 如果沒有對應的寫入器，使用預設文字描述
+                return self._generate_default_text_description(rebar)
+        except Exception as e:
+            print(f"⚠️ 生成鋼筋視覺表示失敗: {e}")
+            return self._generate_default_text_description(rebar)
+    
+    def _generate_default_text_description(self, rebar):
+        """生成預設文字描述"""
         segments = self._get_rebar_segments(rebar)
-        angles = rebar.get('angles', None)
-        shape_type = rebar.get('type', None) # 取得箍筋類型
+        rebar_id = rebar.get('rebar_number', '#4')
         
-        # 針對箍筋，使用解析後的號數，而不是原始文字
-        if shape_type and '箍' in shape_type:
-            rebar_id = rebar.get('rebar_number', '#4')
-        else:
-            rebar_id = rebar_number
-
-        # 檢查是否為 type10 鋼筋
-        if shape_type == 'type10' and self.graphics_available:
-            try:
-                # 生成 type10 鋼筋圖片
-                length = segments[0] if segments else 0
-                image = self.graphics_manager.generate_type10_rebar_image(length, rebar_id)
-                
-                if image:
-                    # 保存到臨時檔案
-                    import tempfile
-                    temp_img_path = tempfile.mktemp(suffix='.png')
-                    image.save(temp_img_path)
-                    self.temp_files.append(temp_img_path)
-                    
-                    print(f"🔍 生成 type10 鋼筋圖片: {temp_img_path}")
-                    return temp_img_path
-                    
-            except Exception as e:
-                print(f"⚠️ 生成 type10 鋼筋圖片失敗: {e}")
-        
-        # 檢查是否為 type11 鋼筋（安全彎鉤直）
-        if shape_type == 'type11' and self.graphics_available:
-            print(f"🔍 檢測到 type11 鋼筋，開始生成圖片...")
-            try:
-                # 生成 type11 鋼筋圖片
-                length = segments[0] if segments else 0
-                print(f"🔍 type11 長度: {length}, 號數: {rebar_id}")
-                image = self.graphics_manager.generate_type11_rebar_image(length, rebar_id)
-                
-                if image:
-                    # 保存到臨時檔案
-                    import tempfile
-                    temp_img_path = tempfile.mktemp(suffix='.png')
-                    image.save(temp_img_path)
-                    self.temp_files.append(temp_img_path)
-                    
-                    print(f"🔍 生成 type11 鋼筋圖片: {temp_img_path}")
-                    return temp_img_path
-                else:
-                    print(f"⚠️ type11 圖片生成失敗，返回 None")
-                    
-            except Exception as e:
-                print(f"⚠️ 生成 type11 鋼筋圖片失敗: {e}")
-        elif shape_type == 'type11':
-            print(f"⚠️ type11 檢測到但 graphics_available = {self.graphics_available}")
-        
-        # 檢查是否為 type12 鋼筋（折料）
-        if shape_type == 'type12' and self.graphics_available:
-            print(f"🔍 檢測到 type12 鋼筋，開始生成圖片...")
-            try:
-                # 生成 type12 鋼筋圖片
-                angles = rebar.get('angles', [])
-                print(f"🔍 type12 段長: {segments}, 角度: {angles}, 號數: {rebar_id}")
-                image = self.graphics_manager.generate_type12_rebar_image(segments, angles, rebar_id)
-                
-                if image:
-                    # 保存到臨時檔案
-                    import tempfile
-                    temp_img_path = tempfile.mktemp(suffix='.png')
-                    image.save(temp_img_path)
-                    self.temp_files.append(temp_img_path)
-                    
-                    print(f"🔍 生成 type12 鋼筋圖片: {temp_img_path}")
-                    return temp_img_path
-                else:
-                    print(f"⚠️ type12 圖片生成失敗，返回 None")
-                    
-            except Exception as e:
-                print(f"⚠️ 生成 type12 鋼筋圖片失敗: {e}")
-        elif shape_type == 'type12':
-            print(f"⚠️ type12 檢測到但 graphics_available = {self.graphics_available}")
-        
-        # 檢查是否為 type18 鋼筋（直料圓弧）
-        if shape_type == 'type18' and self.graphics_available:
-            print(f"🔍 檢測到 type18 鋼筋，開始生成圖片...")
-            try:
-                # 生成 type18 鋼筋圖片
-                radius = rebar.get('radius', 0)
-                length = segments[0] if segments else 0
-                print(f"🔍 type18 長度: {length}, 半徑: {radius}, 號數: {rebar_id}")
-                image = self.graphics_manager.generate_type18_rebar_image(length, radius, rebar_id)
-                
-                if image:
-                    # 保存到臨時檔案
-                    import tempfile
-                    temp_img_path = tempfile.mktemp(suffix='.png')
-                    image.save(temp_img_path)
-                    self.temp_files.append(temp_img_path)
-                    
-                    print(f"🔍 生成 type18 鋼筋圖片: {temp_img_path}")
-                    return temp_img_path
-                else:
-                    print(f"⚠️ type18 圖片生成失敗，返回 None")
-                    
-            except Exception as e:
-                print(f"⚠️ 生成 type18 鋼筋圖片失敗: {e}")
-        elif shape_type == 'type18':
-            print(f"⚠️ type18 檢測到但 graphics_available = {self.graphics_available}")
-        
-        # 檢查是否為 type19 鋼筋（直段+弧段）
-        if shape_type == 'type19' and self.graphics_available:
-            print(f"🔍 檢測到 type19 鋼筋，開始生成圖片...")
-            try:
-                # 生成 type19 鋼筋圖片
-                radius = rebar.get('radius', 0)
-                straight_length = segments[0] if len(segments) > 0 else 0
-                arc_length = segments[1] if len(segments) > 1 else 0
-                print(f"🔍 type19 直段: {straight_length}, 弧段: {arc_length}, 半徑: {radius}, 號數: {rebar_id}")
-                image = self.graphics_manager.generate_type19_rebar_image(straight_length, arc_length, radius, rebar_id)
-                
-                if image:
-                    # 保存到臨時檔案
-                    import tempfile
-                    temp_img_path = tempfile.mktemp(suffix='.png')
-                    image.save(temp_img_path)
-                    self.temp_files.append(temp_img_path)
-                    
-                    print(f"🔍 生成 type19 鋼筋圖片: {temp_img_path}")
-                    return temp_img_path
-                else:
-                    print(f"⚠️ type19 圖片生成失敗，返回 None")
-                    
-            except Exception as e:
-                print(f"⚠️ 生成 type19 鋼筋圖片失敗: {e}")
-        elif shape_type == 'type19':
-            print(f"⚠️ type19 檢測到但 graphics_available = {self.graphics_available}")
-        
-        # 生成文字描述
         if len(segments) == 1:
-            text_description = f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
+            return f"直鋼筋 {rebar_id}\n長度: {int(segments[0])}cm"
         elif len(segments) == 2:
-            text_description = f"L型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])}cm"
+            return f"L型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])}cm"
         elif len(segments) == 3:
-            text_description = f"U型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
+            return f"U型鋼筋 {rebar_id}\n{int(segments[0])} + {int(segments[1])} + {int(segments[2])}cm"
         else:
-            text_description = f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
-            
-        return text_description
+            return f"複雜鋼筋 {rebar_id}\n{' + '.join(str(int(s)) for s in segments)}cm"
 
     def write_rebar_data(self, rebar_data, start_row=3):
         """
